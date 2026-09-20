@@ -1493,5 +1493,102 @@
             }
         }
     </script>
+
+    <!-- ======================================================================
+         GOOGLE SHEET SYNC MODULE  (थपिएको भाग मात्र — माथिको कुनै पनि संरचना,
+         CSS वा function परिवर्तन गरिएको छैन)
+         प्रयोग गर्नु अघि तलको GOOGLE_SCRIPT_URL मा आफ्नो Web App को URL राख्नुहोस्।
+         ====================================================================== -->
+    <script>
+    (function () {
+        "use strict";
+
+        /* ====== यहाँ मात्र परिवर्तन गर्नुहोस् ====== */
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzV6955o6ZJl1ilV9yXauzrknkVSINCp5LWcutUgJoIYj5vwIK5f6VTBkboS114jzRt/exec";
+        /* ========================================= */
+
+        const LS_KEY = "apf_letters_data";
+        let syncTimer = null;
+        let isRestoring = false;
+
+        function configured() {
+            return GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL.indexOf("script.google.com") !== -1;
+        }
+
+        /* ---------- Sheet मा पठाउने (browser -> Google Sheet) ---------- */
+        function pushToSheet() {
+            if (!configured() || isRestoring) return;
+            try {
+                fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({ action: "sync", data: window.lettersData || [] })
+                }).then(function () {
+                    console.log("[Sheet Sync] डेटा Google Sheet मा पठाइयो:", (window.lettersData || []).length, "रेकर्ड");
+                }).catch(function (err) {
+                    console.warn("[Sheet Sync] पठाउन सकिएन:", err);
+                });
+            } catch (err) {
+                console.warn("[Sheet Sync] त्रुटि:", err);
+            }
+        }
+
+        function queueSync() {
+            clearTimeout(syncTimer);
+            syncTimer = setTimeout(pushToSheet, 800);
+        }
+
+        /* ---------- Sheet बाट ल्याउने (Google Sheet -> browser), JSONP ---------- */
+        function pullFromSheet(force) {
+            if (!configured()) return;
+            const cb = "__sheetCb_" + Date.now();
+            window[cb] = function (res) {
+                try {
+                    if (!res || res.status !== "ok" || !Array.isArray(res.data) || res.data.length === 0) return;
+                    const hasLocal = !!localStorage.getItem(LS_KEY);
+                    if (!hasLocal || force === true) {
+                        isRestoring = true;
+                        window.lettersData = res.data;
+                        localStorage.setItem(LS_KEY, JSON.stringify(res.data));
+                        if (typeof renderAllTables === "function") renderAllTables();
+                        if (typeof updateDashboardCounts === "function") updateDashboardCounts();
+                        isRestoring = false;
+                        console.log("[Sheet Sync] Google Sheet बाट", res.data.length, "रेकर्ड लोड भयो");
+                    }
+                } finally {
+                    delete window[cb];
+                    if (s && s.parentNode) s.parentNode.removeChild(s);
+                }
+            };
+            const s = document.createElement("script");
+            s.src = GOOGLE_SCRIPT_URL + "?callback=" + cb + "&t=" + Date.now();
+            s.onerror = function () { console.warn("[Sheet Sync] Sheet बाट लोड गर्न सकिएन"); };
+            document.body.appendChild(s);
+        }
+
+        /* ---------- मूल function हरू नछोई मात्र wrap गर्ने ---------- */
+        const _origSave = window.saveToLocalStorage;
+        window.saveToLocalStorage = function () {
+            const r = _origSave.apply(this, arguments);
+            queueSync();
+            return r;
+        };
+
+        const _origOnload = window.onload;
+        window.onload = function () {
+            if (typeof _origOnload === "function") _origOnload.apply(this, arguments);
+            pullFromSheet(false);
+        };
+
+        /* Console बाट म्यानुअल्ली चलाउन मिल्ने कमाण्डहरू */
+        window.sheetSyncNow = pushToSheet;                      // तुरुन्तै Sheet मा पठाउन
+        window.sheetForceLoad = function () { pullFromSheet(true); }; // Sheet बाटै जबरजस्ती ल्याउन
+
+        if (!configured()) {
+            console.warn("[Sheet Sync] GOOGLE_SCRIPT_URL राखिएको छैन — अहिले डेटा localStorage मा मात्र सेभ हुँदैछ।");
+        }
+    })();
+    </script>
 </body>
 </html>
