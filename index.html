@@ -1549,9 +1549,9 @@
                     method: "POST",
                     mode: "no-cors",
                     headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ action: "sync", data: window.lettersData || [] })
+                    body: JSON.stringify({ action: "sync", data: (typeof lettersData !== "undefined" ? lettersData : []) })
                 }).then(function () {
-                    console.log("[Sheet Sync] डेटा Google Sheet मा पठाइयो:", (window.lettersData || []).length, "रेकर्ड");
+                    console.log("[Sheet Sync] डेटा Google Sheet मा पठाइयो:", (typeof lettersData !== "undefined" ? lettersData.length : 0), "रेकर्ड");
                 }).catch(function (err) {
                     console.warn("[Sheet Sync] पठाउन सकिएन:", err);
                 });
@@ -1575,7 +1575,7 @@
                     const hasLocal = !!localStorage.getItem(LS_KEY);
                     if (!hasLocal || force === true) {
                         isRestoring = true;
-                        window.lettersData = res.data;
+                        lettersData = res.data;
                         localStorage.setItem(LS_KEY, JSON.stringify(res.data));
                         if (typeof renderAllTables === "function") renderAllTables();
                         if (typeof updateDashboardCounts === "function") updateDashboardCounts();
