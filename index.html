@@ -959,6 +959,8 @@
         <div class="modal-content">
             <h3>डिजिटल हस्ताक्षर प्रमाणीकरण</h3>
             <input type="hidden" id="activeSigningRowId">
+            <label>हस्ताक्षर गर्ने अधिकारीको नाम / पद लेख्नुहोस्:</label>
+            <input type="text" id="signerNameInput" placeholder="जस्तै: ने.पौ. रामप्रसाद शर्मा, गण अधिकृत" style="margin-bottom: 15px;">
             <label>अधिकृतको सही भएको फोटो (Signature Image) छान्नुहोस्:</label>
             <input type="file" id="sigImageUpload" accept="image/*" style="margin-bottom: 15px; padding: 5px;">
             <label>गोप्य पिन (PIN) प्रविष्ट गर्नुहोस्:</label>
@@ -1306,17 +1308,25 @@
         function confirmSign() {
             let pin = document.getElementById('pinInput').value;
             let targetId = document.getElementById('activeSigningRowId').value;
+            let signerName = document.getElementById('signerNameInput').value.trim();
+
+            if (!signerName) {
+                alert('कृपया हस्ताक्षर गर्ने अधिकारीको नाम/पद लेख्नुहोस्!');
+                return;
+            }
 
             if (pin) {
                 let item = lettersData.find(d => d.id === targetId);
                 if (item) {
                     item.signature = tempSelectedSigUrl || 'https://via.placeholder.com/120x50?text=Signed';
+                    item.signerName = signerName;
                     saveToLocalStorage();
                     alert('डिजिटल सही सफलतापूर्वक प्रमाणित र सेभ भयो!');
                 }
 
                 closeModal('signModal');
                 document.getElementById('pinInput').value = '';
+                document.getElementById('signerNameInput').value = '';
                 tempSelectedSigUrl = '';
                 document.getElementById('sigImageUpload').value = '';
             } else {
@@ -1443,6 +1453,8 @@
         function openSignModal(id) {
             currentLetterUniqueId = id;
             document.getElementById('activeSigningRowId').value = id;
+            let item = lettersData.find(d => d.id === id);
+            document.getElementById('signerNameInput').value = (item && item.signerName) ? item.signerName : '';
             document.getElementById('signModal').style.display = 'flex';
         }
 
@@ -1452,15 +1464,17 @@
 
         function openLetterPad(id, subject, office, branchName, senderDispatchNo) {
             currentLetterUniqueId = id;
-            document.getElementById('padSubject').value = subject;
-            document.getElementById('padReplyText').innerHTML = '';
-            document.getElementById('padPraPaSa').value = senderDispatchNo || '-';
+            let item = lettersData.find(d => d.id === id);
+
+            document.getElementById('padSubject').value = (item && item.replySubject) ? item.replySubject : subject;
+            document.getElementById('padReplyText').innerHTML = (item && item.replyText) ? item.replyText : '';
+            document.getElementById('padPraPaSa').value = (item && item.replyPraPaSa) ? item.replyPraPaSa : (senderDispatchNo || '-');
             if (branchName) document.getElementById('padBranchTitle').innerText = '(' + branchName + ')';
 
-            let item = lettersData.find(d => d.id === id);
             let sigArea = document.getElementById('padSignatureArea');
             if (item && item.signature) {
-                sigArea.innerHTML = `<img src="${item.signature}" alt="Signature"><div class="sig-line" contenteditable="true" style="color: var(--success); font-weight: bold;">✔️ प्रमाणित (गणपति)</div>`;
+                let displayName = item.signerName || 'गणपति';
+                sigArea.innerHTML = `<img src="${item.signature}" alt="Signature"><div class="sig-line" contenteditable="true" style="color: var(--success); font-weight: bold;">✔️ प्रमाणित (${displayName})</div>`;
             } else {
                 sigArea.innerHTML = '<div class="sig-line" contenteditable="true">(हस्ताक्षर बाँकी - क्लिक गरी नाम/पद लेख्नुहोस्)</div>';
             }
@@ -1468,7 +1482,19 @@
         }
 
         function closeLetterPad() { document.getElementById('letterPadModal').style.display = 'none'; }
-        function saveLetterPad() { alert('लेटर प्याड सुरक्षित भयो!'); closeLetterPad(); }
+
+        // लेटर प्याडमा लेखेको पत्र/जवाफ सेभ गर्ने (Google Sheet मा पनि सिंक हुने)
+        function saveLetterPad() {
+            let item = lettersData.find(d => d.id === currentLetterUniqueId);
+            if (item) {
+                item.replySubject = document.getElementById('padSubject').value;
+                item.replyText = document.getElementById('padReplyText').innerHTML;
+                item.replyPraPaSa = document.getElementById('padPraPaSa').value;
+                saveToLocalStorage();
+            }
+            alert('लेटर प्याड सुरक्षित भयो!');
+            closeLetterPad();
+        }
         function triggerPrint() { window.print(); }
 
         function formatText(cmd) { document.execCommand(cmd, false, null); }
