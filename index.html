@@ -252,12 +252,14 @@
         .btn-reply { background-color: #fef9c3; color: #854d0e; }
         .btn-primary-add { background-color: var(--secondary-color); color: white; padding: 8px 14px; border-radius: 4px; font-size: 13px; }
         .btn-delete { background-color: #fee2e2; color: #b91c1c; margin-left: 4px; }
+        .btn-complete { background-color: #dcfce7; color: #166534; margin-left: 4px; }
 
         .btn-view:hover { background-color: #bae6fd; }
         .btn-sign:hover { background-color: #bbf7d0; }
         .btn-reply:hover { background-color: #fef08a; }
         .btn-primary-add:hover { background-color: #0b2545; }
         .btn-delete:hover { background-color: #fecaca; }
+        .btn-complete:hover { background-color: #bbf7d0; }
 
         .status-signed {
             color: var(--success);
@@ -1004,7 +1006,6 @@
                 <option value="accounts">आर्थिक प्रशासन शाखा</option>
             </select>
 
-            <!-- यहाँ क्या메라बाट फोटो खिच्ने र फाइल छान्ने दुवै अप्सन राखिएको छ -->
             <label>बाहिरी कार्यालयबाट आएको पत्र एटेच गर्ने (फोटो खिच्नुहोस् वा PDF/Image छान्नुहोस्):</label>
             <input type="file" id="newLetterAttachment" accept=".pdf,image/*" capture="environment" style="margin-bottom: 15px; padding: 5px;">
 
@@ -1044,7 +1045,8 @@
                 subject: 'वार्षिक सुरक्षा नीतिको कार्यान्वयन सम्बन्धमा',
                 date: '२०८३-०६-०६',
                 signature: null,
-                attachment: null
+                attachment: null,
+                isCompleted: false
             },
             {
                 id: 'row-default-admin-1',
@@ -1056,7 +1058,8 @@
                 subject: 'मानव स्रोत विभाग - कर्मचारी सरुवा तथा काज सम्बन्धी विवरण',
                 date: '२०८३-०६-०६',
                 signature: null,
-                attachment: null
+                attachment: null,
+                isCompleted: false
             },
             {
                 id: 'row-default-hr-1',
@@ -1068,7 +1071,8 @@
                 subject: 'दर्जा वृद्धिका लागि सिफारिस तथा तालिम विवरण',
                 date: '२०८३-०६-०६',
                 signature: null,
-                attachment: null
+                attachment: null,
+                isCompleted: false
             },
             {
                 id: 'row-default-training-1',
@@ -1080,7 +1084,8 @@
                 subject: 'दंगा नियन्त्रण रिफ्रेसर तालिम',
                 date: '२०८३-०६-०६',
                 signature: null,
-                attachment: null
+                attachment: null,
+                isCompleted: false
             },
             {
                 id: 'row-default-mgmt-1',
@@ -1092,7 +1097,8 @@
                 subject: 'युनिफर्म कपडा तथा जुत्ता सेट',
                 date: '२०८३-०६-०६',
                 signature: null,
-                attachment: null
+                attachment: null,
+                isCompleted: false
             },
             {
                 id: 'row-default-acc-1',
@@ -1104,7 +1110,8 @@
                 subject: 'चौमासिक बजेट तथा खर्चको विवरण पेस गर्ने सम्बन्धमा',
                 date: '२०८३-०६-०६',
                 signature: null,
-                attachment: null
+                attachment: null,
+                isCompleted: false
             }
         ];
 
@@ -1142,6 +1149,9 @@
                         item.subject.toLowerCase().includes(q) ||
                         item.senderDispNo.toLowerCase().includes(q)
                     );
+                } else {
+                    // सम्पन्न भइसकेका पत्रहरू सामान्य सूचीमा नदेखिने तर सर्च गर्दा देखा पर्ने
+                    filtered = filtered.filter(item => !item.isCompleted);
                 }
 
                 if (filtered.length === 0) {
@@ -1153,9 +1163,10 @@
                     let rowNum = index + 1;
                     let badgeHTML = (item.type === 'darta') ? '<span class="badge-darta">दर्ता (Incoming)</span>' : '<span class="badge-chalani">चलानी (Outgoing)</span>';
                     let branchLabel = getBranchLabelName(item.branch);
+                    
                     let signCellHTML = item.signature ? 
-                        `<span class="status-signed">✔️ प्रमाणित (Signed)</span> <button class="btn-action btn-delete" onclick="deleteLetter('${item.id}')">मेटाउने</button>` : 
-                        `<button class="btn-action btn-sign" onclick="openSignModal('${item.id}')">🔏 डिजिटल सही</button> <button class="btn-action btn-delete" onclick="deleteLetter('${item.id}')">मेटाउने</button>`;
+                        `<span class="status-signed">✔️ प्रमाणित (Signed)</span> <button class="btn-action btn-delete" onclick="deleteLetter('${item.id}')">मेटाउने</button><button class="btn-action btn-complete" onclick="markCompleted('${item.id}')">✅ सम्पन्न</button>` : 
+                        `<button class="btn-action btn-sign" onclick="openSignModal('${item.id}')">🔏 डिजिटल सही</button> <button class="btn-action btn-delete" onclick="deleteLetter('${item.id}')">मेटाउने</button><button class="btn-action btn-complete" onclick="markCompleted('${item.id}')">✅ सम्पन्न</button>`;
 
                     let tr = document.createElement('tr');
                     tr.id = item.id;
@@ -1216,6 +1227,15 @@
             renderAllTables(inputVal);
         }
 
+        function markCompleted(id) {
+            let item = lettersData.find(d => d.id === id);
+            if (item) {
+                item.isCompleted = true;
+                saveToLocalStorage();
+                alert('पत्र सम्पन्न भई सूचीबाट हटाइएको छ। आवश्यक पर्दा सर्चबारबाट खोजेर हेर्न सक्नुहुन्छ।');
+            }
+        }
+
         function getBranchLabelName(branchCode) {
             switch(branchCode) {
                 case 'admin': return 'प्रशासन शाखा';
@@ -1247,7 +1267,8 @@
                     subject: subject,
                     date: '२०८३-०६-०६',
                     signature: null,
-                    attachment: tempAttachmentUrl ? { url: tempAttachmentUrl, name: tempAttachmentName } : null
+                    attachment: tempAttachmentUrl ? { url: tempAttachmentUrl, name: tempAttachmentName } : null,
+                    isCompleted: false
                 };
 
                 lettersData.push(newItem);
@@ -1277,14 +1298,15 @@
         }
 
         function updateDashboardCounts() {
-            let total = lettersData.length;
-            let signedCount = lettersData.filter(item => item.signature !== null).length;
+            let activeLetters = lettersData.filter(item => !item.isCompleted);
+            let total = activeLetters.length;
+            let signedCount = activeLetters.filter(item => item.signature !== null).length;
             let pendingCount = total - signedCount;
-            let adminCount = lettersData.filter(item => item.branch === 'admin').length;
-            let hrCount = lettersData.filter(item => item.branch === 'hr').length;
-            let trainingCount = lettersData.filter(item => item.branch === 'training').length;
-            let managementCount = lettersData.filter(item => item.branch === 'management').length;
-            let accountsCount = lettersData.filter(item => item.branch === 'accounts').length;
+            let adminCount = activeLetters.filter(item => item.branch === 'admin').length;
+            let hrCount = activeLetters.filter(item => item.branch === 'hr').length;
+            let trainingCount = activeLetters.filter(item => item.branch === 'training').length;
+            let managementCount = activeLetters.filter(item => item.branch === 'management').length;
+            let accountsCount = activeLetters.filter(item => item.branch === 'accounts').length;
 
             document.getElementById('statTotalLetters').innerText = total + ' वटा';
             document.getElementById('statSignedLetters').innerText = signedCount + ' वटा';
