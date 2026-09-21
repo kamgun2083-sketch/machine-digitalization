@@ -671,7 +671,7 @@
                 <div class="data-section">
                     <h2>हालैका गतिविधिहरू र जरुरी पत्रहरूको सारांश</h2>
                     <p style="font-size: 14px; color: #475569; line-height: 1.6;">
-                        स्वागत छ! माथिका कार्डहरूमा क्लिक गरेर सीधै सम्बन्धित पत्रहरू हेर्न सक्नुहुन्छ वा बायाँपट्टिको मेनु प्रयोग गर्नुहोस्। डाटा ब्राउजरमा सुरक्षित (Store) रहनेछ।
+                        स्वागत छ! माथिका कार्डहरूमा क्लिक गरेर सीधै सम्बन्धित पत्रहरू हेर्न सक्नुहुन्छ वा बायाँपट्टिको मेनु प्रयोग गर्नुहोस्। डाटा गुगल सिटमा सुरक्षित हुनेछ।
                     </p>
                     <div style="margin-top: 15px;">
                         <button class="btn-action btn-primary-add" onclick="openModal('addLetterModal')">➕ नयाँ पत्र दर्ता/चलानी थप्ने</button>
@@ -679,7 +679,6 @@
                 </div>
             </div>
 
-            <!-- साधारण टेबुलहरूको लागि साझा कम्पोनेन्ट (Search bar सहित) -->
             <div id="section-letter" class="branch-section" style="display: none;">
                 <div class="data-section">
                     <div class="section-header-flex">
@@ -972,7 +971,7 @@
         </div>
     </div>
 
-    <!-- नयाँ पत्र थप्ने मोडल -->
+    <!-- नयाँ पत्र थप्ने मोडल (क्यामेरा र फाइल दुवै अप्सन सहित) -->
     <div id="addLetterModal" class="modal">
         <div class="modal-content">
             <h3>नयाँ पत्र दर्ता / चलानी थप्ने फारम</h3>
@@ -1005,8 +1004,9 @@
                 <option value="accounts">आर्थिक प्रशासन शाखा</option>
             </select>
 
-            <label>बाहिरी कार्यालयबाट आएको पत्र एटेच गर्ने (PDF/Image):</label>
-            <input type="file" id="newLetterAttachment" accept=".pdf,image/*" style="margin-bottom: 15px; padding: 5px;">
+            <!-- यहाँ क्या메라बाट फोटो खिच्ने र फाइल छान्ने दुवै अप्सन राखिएको छ -->
+            <label>बाहिरी कार्यालयबाट आएको पत्र एटेच गर्ने (फोटो खिच्नुहोस् वा PDF/Image छान्नुहोस्):</label>
+            <input type="file" id="newLetterAttachment" accept=".pdf,image/*" capture="environment" style="margin-bottom: 15px; padding: 5px;">
 
             <div class="modal-buttons">
                 <button class="btn-close" onclick="closeModal('addLetterModal')">रद्द गर्नुहोस्</button>
@@ -1023,8 +1023,8 @@
             <div id="currentAttachmentInfo" style="margin-bottom: 15px; font-size: 13px; color: #475569; background: #f8fafc; padding: 10px; border-radius: 4px;">
                 हाल कुनै कागजात एटेच गरिएको छैन।
             </div>
-            <label>नयाँ पत्र वा फाइल अपलोड गर्नुहोस् (PDF / Image):</label>
-            <input type="file" id="modalFileUpload" accept=".pdf,image/*" style="margin-bottom: 15px; padding: 5px;">
+            <label>नयाँ पत्रको फोटो खिच्नुहोस् वा फाइल अपलोड गर्नुहोस् (PDF / Image):</label>
+            <input type="file" id="modalFileUpload" accept=".pdf,image/*" capture="environment" style="margin-bottom: 15px; padding: 5px;">
             <div class="modal-buttons">
                 <button class="btn-close" onclick="closeModal('attachmentModal')">बन्द गर्ने</button>
                 <button class="btn-submit" onclick="saveAttachment()">अपलोड गरी सेभ गर्ने</button>
@@ -1033,7 +1033,6 @@
     </div>
 
     <script>
-        // LocalStorage बाट डेटा लोड गर्ने वा खाली एर्रे (Array) राख्ने
         let lettersData = JSON.parse(localStorage.getItem('apf_letters_data')) || [
             {
                 id: 'row-default-1',
@@ -1114,7 +1113,6 @@
         let tempAttachmentUrl = '';
         let tempAttachmentName = '';
 
-        // पेज लोड हुँदा टेबल र ड्यासबोर्ड रिफ्रेस गर्ने
         window.onload = function() {
             renderAllTables();
             updateDashboardCounts();
@@ -1126,7 +1124,6 @@
             updateDashboardCounts();
         }
 
-        // सबै शाखाका टेबलहरू रेन्डर गर्ने र फिल्टर (Search) लागू गर्ने
         function renderAllTables(searchQuery = '') {
             const branches = ['letter', 'admin', 'hr', 'training', 'management', 'accounts'];
 
@@ -1137,7 +1134,6 @@
 
                 let filtered = lettersData.filter(item => item.branch === branch);
 
-                // सर्च क्युरी अनुसार फिल्टर गर्ने
                 if (searchQuery.trim() !== '') {
                     let q = searchQuery.toLowerCase();
                     filtered = filtered.filter(item => 
@@ -1215,7 +1211,6 @@
             });
         }
 
-        // सर्च बारमा टाइप गर्दा कल हुने फंक्सन
         function filterTable(branchName) {
             let inputVal = document.getElementById(`searchInput-${branchName}`).value;
             renderAllTables(inputVal);
@@ -1232,7 +1227,6 @@
             }
         }
 
-        // नयाँ पत्र थप्ने फंक्सन
         function addNewLetter() {
             let type = document.getElementById('typeSelect').value;
             let regNoText = document.getElementById('regDispatchNo').value;
@@ -1259,7 +1253,7 @@
                 lettersData.push(newItem);
                 saveToLocalStorage();
 
-                alert('नयाँ पत्र / विवरण सफलतापूर्वक थपियो र सेभ भयो!');
+                alert('नयाँ पत्र / विवरण सफलतापूर्वक थपियो र गुगल सिटमा सिंक भयो!');
                 closeModal('addLetterModal');
                 
                 document.getElementById('regDispatchNo').value = '';
@@ -1274,7 +1268,6 @@
             }
         }
 
-        // पत्र मेटाउने फंक्सन
         function deleteLetter(id) {
             if (confirm('के तपाईं यो पत्र स्थायी रूपमा मेटाउन चाहनुहुन्छ?')) {
                 lettersData = lettersData.filter(item => item.id !== id);
@@ -1283,7 +1276,6 @@
             }
         }
 
-        // ड्यासबोर्डमा गणना अद्यावधिक गर्ने
         function updateDashboardCounts() {
             let total = lettersData.length;
             let signedCount = lettersData.filter(item => item.signature !== null).length;
@@ -1304,7 +1296,6 @@
             document.getElementById('statAccountsFiles').innerText = accountsCount + ' वटा';
         }
 
-        // डिजिटल सही प्रमाणित गर्ने
         function confirmSign() {
             let pin = document.getElementById('pinInput').value;
             let targetId = document.getElementById('activeSigningRowId').value;
@@ -1334,7 +1325,6 @@
             }
         }
 
-        // एटेचमेन्ट सेभ गर्ने
         function saveAttachment() {
             let rowId = document.getElementById('activeAttachmentRowId').value;
             if (tempAttachmentUrl) {
@@ -1346,11 +1336,10 @@
                 }
                 closeModal('attachmentModal');
             } else {
-                alert('कृपया एटेच गर्नका लागि कुनै फाइल छान्नुहोस्!');
+                alert('कृपया एटेच गर्नका लागि कुनै फाइल छान्नुहोस् वा फोटो खिच्नुहोस्!');
             }
         }
 
-        // फाइल इनपुट रिडरहरू
         document.getElementById('sigImageUpload').addEventListener('change', function(event) {
             let file = event.target.files[0];
             if (file) {
@@ -1366,7 +1355,7 @@
                 let reader = new FileReader();
                 reader.onload = function(e) {
                     tempAttachmentUrl = e.target.result;
-                    tempAttachmentName = file.name;
+                    tempAttachmentName = file.name || 'camera_capture.jpg';
                 }
                 reader.readAsDataURL(file);
             }
@@ -1378,13 +1367,12 @@
                 let reader = new FileReader();
                 reader.onload = function(e) {
                     tempAttachmentUrl = e.target.result;
-                    tempAttachmentName = file.name;
+                    tempAttachmentName = file.name || 'camera_capture.jpg';
                 }
                 reader.readAsDataURL(file);
             }
         });
 
-        // नेभिगेसन र मोडल फंक्सनहरू
         function switchTab(branchId, element) {
             let sections = document.querySelectorAll('.branch-section');
             sections.forEach(sec => sec.style.display = 'none');
@@ -1483,7 +1471,6 @@
 
         function closeLetterPad() { document.getElementById('letterPadModal').style.display = 'none'; }
 
-        // लेटर प्याडमा लेखेको पत्र/जवाफ सेभ गर्ने (Google Sheet मा पनि सिंक हुने)
         function saveLetterPad() {
             let item = lettersData.find(d => d.id === currentLetterUniqueId);
             if (item) {
@@ -1520,19 +1507,12 @@
         }
     </script>
 
-    <!-- ======================================================================
-         GOOGLE SHEET SYNC MODULE  (थपिएको भाग मात्र — माथिको कुनै पनि संरचना,
-         CSS वा function परिवर्तन गरिएको छैन)
-         प्रयोग गर्नु अघि तलको GOOGLE_SCRIPT_URL मा आफ्नो Web App को URL राख्नुहोस्।
-         ====================================================================== -->
+    <!-- GOOGLE SHEET SYNC MODULE -->
     <script>
     (function () {
         "use strict";
 
-        /* ====== यहाँ मात्र परिवर्तन गर्नुहोस् ====== */
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzV6955o6ZJl1ilV9yXauzrknkVSINCp5LWcutUgJoIYj5vwIK5f6VTBkboS114jzRt/exec";
-        /* ========================================= */
-
         const LS_KEY = "apf_letters_data";
         let syncTimer = null;
         let isRestoring = false;
@@ -1541,7 +1521,6 @@
             return GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL.indexOf("script.google.com") !== -1;
         }
 
-        /* ---------- Sheet मा पठाउने (browser -> Google Sheet) ---------- */
         function pushToSheet() {
             if (!configured() || isRestoring) return;
             try {
@@ -1551,7 +1530,7 @@
                     headers: { "Content-Type": "text/plain;charset=utf-8" },
                     body: JSON.stringify({ action: "sync", data: (typeof lettersData !== "undefined" ? lettersData : []) })
                 }).then(function () {
-                    console.log("[Sheet Sync] डेटा Google Sheet मा पठाइयो:", (typeof lettersData !== "undefined" ? lettersData.length : 0), "रेकर्ड");
+                    console.log("[Sheet Sync] डेटा Google Sheet मा पठाइयो");
                 }).catch(function (err) {
                     console.warn("[Sheet Sync] पठाउन सकिएन:", err);
                 });
@@ -1562,10 +1541,9 @@
 
         function queueSync() {
             clearTimeout(syncTimer);
-            syncTimer = setTimeout(pushToSheet, 800);
+            syncTimer = setTimeout(pushToSheet, 1000);
         }
 
-        /* ---------- Sheet बाट ल्याउने (Google Sheet -> browser), JSONP ---------- */
         function pullFromSheet(force) {
             if (!configured()) return;
             const cb = "__sheetCb_" + Date.now();
@@ -1580,7 +1558,6 @@
                         if (typeof renderAllTables === "function") renderAllTables();
                         if (typeof updateDashboardCounts === "function") updateDashboardCounts();
                         isRestoring = false;
-                        console.log("[Sheet Sync] Google Sheet बाट", res.data.length, "रेकर्ड लोड भयो");
                     }
                 } finally {
                     delete window[cb];
@@ -1593,7 +1570,6 @@
             document.body.appendChild(s);
         }
 
-        /* ---------- मूल function हरू नछोई मात्र wrap गर्ने ---------- */
         const _origSave = window.saveToLocalStorage;
         window.saveToLocalStorage = function () {
             const r = _origSave.apply(this, arguments);
@@ -1607,12 +1583,8 @@
             pullFromSheet(false);
         };
 
-        /* Console बाट म्यानुअल्ली चलाउन मिल्ने कमाण्डहरू */
-        window.sheetSyncNow = pushToSheet;                      // तुरुन्तै Sheet मा पठाउन
-        window.sheetForceLoad = function () { pullFromSheet(true); }; // Sheet बाटै जबरजस्ती ल्याउन
-
         if (!configured()) {
-            console.warn("[Sheet Sync] GOOGLE_SCRIPT_URL राखिएको छैन — अहिले डेटा localStorage मा मात्र सेभ हुँदैछ।");
+            console.warn("[Sheet Sync] GOOGLE_SCRIPT_URL राखिएको छैन।");
         }
     })();
     </script>
