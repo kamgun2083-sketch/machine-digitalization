@@ -688,7 +688,7 @@
                         <button class="btn-action btn-primary-add" onclick="openModal('addLetterModal')">➕ नयाँ पत्र थप्ने</button>
                     </div>
                     <div class="search-box-container">
-                        <input type="text" id="searchInput-letter" placeholder="🔍 पत्र नं, पठाउने कार्यालय वा विषयद्वारा खोज्नुहोस्..." onkeyup="filterTable('letter')">
+                        <input type="text" id="searchInput-letter" placeholder="🔍 सि.नं., पत्र नं, पठाउने कार्यालय वा विषयद्वारा खोज्नुहोस्..." onkeyup="filterTable('letter')">
                     </div>
                     <div class="table-responsive">
                         <table id="letterTable">
@@ -973,7 +973,7 @@
         </div>
     </div>
 
-    <!-- नयाँ पत्र थप्ने मोडल (क्यामेरा र फाइल दुवै अप्सन सहित) -->
+    <!-- नयाँ पत्र थप्ने मोडल -->
     <div id="addLetterModal" class="modal">
         <div class="modal-content">
             <h3>नयाँ पत्र दर्ता / चलानी थप्ने फारम</h3>
@@ -985,7 +985,7 @@
             </select>
 
             <label>हाम्रो दर्ता नं. वा चलानी नं.:</label>
-            <input type="text" id="regDispatchNo" placeholder="जस्तै: १०६">
+            <input type="text" id="regDispatchNo" placeholder="जस्तै: 306">
 
             <label>पठाउने कार्यालय वा शाखाको नाम:</label>
             <input type="text" id="senderOffice" placeholder="कार्यालय वा व्यक्तिको नाम लेख्नुहोस्">
@@ -1039,10 +1039,23 @@
                 id: 'row-default-1',
                 branch: 'letter',
                 type: 'darta',
-                regNo: 'दर्ता नं. १०५',
-                sender: 'सशस्त्र प्रहरी बल, नेपाल प्रधान कार्यालय',
-                senderDispNo: 'च.नं. २४५ (०८३/०८४)',
-                subject: 'वार्षिक सुरक्षा नीतिको कार्यान्वयन सम्बन्धमा',
+                regNo: '306',
+                sender: 'प्रहरी प्रधान कार्यालय',
+                senderDispNo: '५४१',
+                subject: 'सुरक्षा व्यवस्थापन सम्बन्धमा',
+                date: '२०८३-०६-०६',
+                signature: null,
+                attachment: null,
+                isCompleted: false
+            },
+            {
+                id: 'row-default-2',
+                branch: 'letter',
+                type: 'chalani',
+                regNo: '३०७',
+                sender: 'महानगरिय कार्यालय',
+                senderDispNo: '१२',
+                subject: 'प्रतिवेदन पेस गर्ने बारे',
                 date: '२०८३-०६-०६',
                 signature: null,
                 attachment: null,
@@ -1056,58 +1069,6 @@
                 sender: 'मानव स्रोत विभाग',
                 senderDispNo: '-',
                 subject: 'मानव स्रोत विभाग - कर्मचारी सरुवा तथा काज सम्बन्धी विवरण',
-                date: '२०८३-०६-०६',
-                signature: null,
-                attachment: null,
-                isCompleted: false
-            },
-            {
-                id: 'row-default-hr-1',
-                branch: 'hr',
-                type: 'darta',
-                regNo: 'दर्ता नं. ७५',
-                sender: 'मानव स्रोत निर्देशनालय',
-                senderDispNo: 'च.नं. १ीय',
-                subject: 'दर्जा वृद्धिका लागि सिफारिस तथा तालिम विवरण',
-                date: '२०८३-०६-०६',
-                signature: null,
-                attachment: null,
-                isCompleted: false
-            },
-            {
-                id: 'row-default-training-1',
-                branch: 'training',
-                type: 'darta',
-                regNo: 'दर्ता नं. ९०',
-                sender: 'प्रशिक्षु केन्द्र',
-                senderDispNo: 'च.नं. ७८',
-                subject: 'दंगा नियन्त्रण रिफ्रेसर तालिम',
-                date: '२०८३-०६-०६',
-                signature: null,
-                attachment: null,
-                isCompleted: false
-            },
-            {
-                id: 'row-default-mgmt-1',
-                branch: 'management',
-                type: 'darta',
-                regNo: 'दर्ता नं. ११२',
-                sender: 'केन्द्रीय जिन्सी शाखा',
-                senderDispNo: 'च.नं. ५६',
-                subject: 'युनिफर्म कपडा तथा जुत्ता सेट',
-                date: '२०८३-०६-०६',
-                signature: null,
-                attachment: null,
-                isCompleted: false
-            },
-            {
-                id: 'row-default-acc-1',
-                branch: 'accounts',
-                type: 'darta',
-                regNo: 'दर्ता नं. ३४',
-                sender: 'आर्थिक प्रशासन निर्देशनालय',
-                senderDispNo: 'च.नं. १८',
-                subject: 'चौमासिक बजेट तथा खर्चको विवरण पेस गर्ने सम्बन्धमा',
                 date: '२०८३-०६-०६',
                 signature: null,
                 attachment: null,
@@ -1147,10 +1108,10 @@
                         item.regNo.toLowerCase().includes(q) ||
                         item.sender.toLowerCase().includes(q) ||
                         item.subject.toLowerCase().includes(q) ||
-                        item.senderDispNo.toLowerCase().includes(q)
+                        item.senderDispNo.toLowerCase().includes(q) ||
+                        (item.type && item.type.toLowerCase().includes(q))
                     );
                 } else {
-                    // सम्पन्न भइसकेका पत्रहरू सामान्य सूचीमा नदेखिने तर सर्च गर्दा देखा पर्ने
                     filtered = filtered.filter(item => !item.isCompleted);
                 }
 
@@ -1250,7 +1211,7 @@
         function addNewLetter() {
             let type = document.getElementById('typeSelect').value;
             let regNoText = document.getElementById('regDispatchNo').value;
-            let regNo = (type === 'darta') ? 'दर्ता नं. ' + regNoText : 'चलानी नं. ' + regNoText;
+            let regNo = regNoText;
             let sender = document.getElementById('senderOffice').value;
             let senderDispNo = document.getElementById('senderDispatchNo').value || '-';
             let subject = document.getElementById('letterSubject').value;
