@@ -1611,9 +1611,28 @@
         const LS_KEY = "apf_letters_data";
         let syncTimer = null;
         let isRestoring = false;
+        let isPulling = false;
+        let isPushing = false;
+        let pendingPush = false;
 
         function configured() {
             return GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL.indexOf("script.google.com") !== -1;
+        }
+
+        function setSyncStatus(text, ok) {
+            let el = document.getElementById('sheetSyncStatus');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'sheetSyncStatus';
+                el.style.cssText = 'position:fixed;bottom:10px;right:10px;z-index:99999;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,0.15);transition:opacity .3s;';
+                document.body.appendChild(el);
+            }
+            el.textContent = text;
+            el.style.background = ok ? '#dcfce7' : '#fee2e2';
+            el.style.color = ok ? '#166534' : '#991b1b';
+            el.style.opacity = '1';
+            clearTimeout(el._hideTimer);
+            el._hideTimer = setTimeout(function () { el.style.opacity = '0'; }, 4000);
         }
 
         const SHEET_FIELD_LIMIT = 45000;
@@ -1635,6 +1654,8 @@
 
         function pushToSheet() {
             if (!configured() || isRestoring) return;
+            if (isPushing) { pendingPush = true; return; }
+            isPushing = true;
             try {
                 fetch(GOOGLE_SCRIPT_URL, {
                     method: "POST",
@@ -1643,11 +1664,17 @@
                     body: JSON.stringify({ action: "sync", data: buildSyncPayload() })
                 }).then(function () {
                     console.log("[Sheet Sync] डेटा Google Sheet मा पठाइयो");
+                    setSyncStatus("☁️ Google Sheet मा पठाइयो", true);
                 }).catch(function (err) {
                     console.warn("[Sheet Sync] पठाउन सकिएन:", err);
+                    setSyncStatus("⚠️ Sheet मा पठाउन सकिएन (इन्टरनेट जाँच्नुहोस्)", false);
+                }).finally(function () {
+                    isPushing = false;
+                    if (pendingPush) { pendingPush = false; queueSync(); }
                 });
             } catch (err) {
                 console.warn("[Sheet Sync] त्रुटि:", err);
+                isPushing = false;
             }
         }
 
@@ -1682,11 +1709,25 @@
         }
 
         function pullFromSheet(force) {
-            if (!configured()) return;
-            const cb = "__sheetCb_" + Date.now();
-            window[cb] = function (res) {
-                try {
-                    if (!res || res.status !== "ok" || !Array.isArray(res.data)) return;
+            if (!configured() || isPulling) return;
+            isPulling = true;
+
+            const controller = (typeof AbortController !== "undefined") ? new AbortController() : null;
+            const timeoutId = controller ? setTimeout(function () { controller.abort(); }, 15000) : null;
+
+            fetch(GOOGLE_SCRIPT_URL + "?action=list&t=" + Date.now(), {
+                method: "GET",
+                cache: "no-store",
+                signal: controller ? controller.signal : undefined
+            })
+                .then(function (response) {
+                    if (!response.ok) throw new Error("HTTP " + response.status);
+                    return response.json();
+                })
+                .then(function (res) {
+                    if (!res || res.status !== "ok" || !Array.isArray(res.data)) {
+                        throw new Error("अनपेक्षित जवाफ (Sheet सिंकको सेटअप जाँच्नुहोस्)");
+                    }
                     isRestoring = true;
                     lettersData = mergeSheetData(res.data);
                     try {
@@ -1696,18 +1737,17 @@
                     }
                     if (typeof renderAllTables === "function") renderAllTables();
                     if (typeof updateDashboardCounts === "function") updateDashboardCounts();
-                } catch (e) {
-                    console.warn("[Sheet Sync] मर्ज गर्दा त्रुटि:", e);
-                } finally {
+                    setSyncStatus("✅ Sheet सँग मिलाइयो (" + res.data.length + " वटा पत्र)", true);
+                })
+                .catch(function (err) {
+                    console.warn("[Sheet Sync] Sheet बाट तान्न सकिएन:", err);
+                    setSyncStatus("⚠️ Sheet बाट पत्रहरू तान्न सकिएन", false);
+                })
+                .finally(function () {
+                    if (timeoutId) clearTimeout(timeoutId);
                     isRestoring = false;
-                    delete window[cb];
-                    if (s && s.parentNode) s.parentNode.removeChild(s);
-                }
-            };
-            const s = document.createElement("script");
-            s.src = GOOGLE_SCRIPT_URL + "?callback=" + cb + "&t=" + Date.now();
-            s.onerror = function () { console.warn("[Sheet Sync] Sheet बाट लोड गर्न सकिएन"); };
-            document.body.appendChild(s);
+                    isPulling = false;
+                });
         }
 
         const _origSave = window.saveToLocalStorage;
