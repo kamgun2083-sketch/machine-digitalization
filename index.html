@@ -865,7 +865,7 @@
         </div>
 
         <footer>
-            &copy; २०२६ काठमाडौं उपत्यका प्रहरी सशस्त्र प्रहरी गण नं. २, महाराजगंज। सर्वाधिकार सुरक्षित। System Designed & Developed by: Baikuntha Subedi
+            &copy; २०२६ काठमाडौं उपत्यका प्रहरी सशस्त्र प्रहरी गण नं. २, महाराजगंज। सर्वाधिकार सुरक्षित।
         </footer>
     </div>
 
@@ -1126,19 +1126,7 @@
         };
 
         function saveToLocalStorage() {
-            try {
-                // ठूला एटेचमेन्टहरूलाई LocalStorage मा सेभ हुनबाट रोकेर साइज घटाउने
-                let dataToStore = lettersData.map(item => {
-                    let clone = Object.assign({}, item);
-                    if (clone.attachment && clone.attachment.url && clone.attachment.url.length > 50000) {
-                        clone.attachment = { url: '', name: clone.attachment.name, localOnly: true };
-                    }
-                    return clone;
-                });
-                localStorage.setItem('apf_letters_data', JSON.stringify(dataToStore));
-            } catch (e) {
-                console.warn('[Storage] यन्त्रमा सुरक्षित गर्न सकिएन:', e);
-            }
+            localStorage.setItem('apf_letters_data', JSON.stringify(lettersData));
             renderAllTables();
             updateDashboardCounts();
         }
@@ -1374,88 +1362,36 @@
             }
         }
 
-        const MAX_RAW_FILE_MB = 25;
-
-        function readFileForUpload(file, statusEl, onReady) {
-            if (!file) return;
-            if (file.size > MAX_RAW_FILE_MB * 1024 * 1024) {
-                alert('⚠️ यो फाइल धेरै ठूलो (' + Math.round(file.size / 1024 / 1024) + ' MB) छ। कृपया ' + MAX_RAW_FILE_MB + ' MB भन्दा सानो फाइल छान्नुहोस्।');
-                return;
-            }
-
-            const isPDF = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
-            if (statusEl) statusEl.innerHTML = '⏳ फाइल तयार हुँदैछ, कृपया पर्खनुहोस्...';
-
-            if (isPDF) {
-                let reader = new FileReader();
-                reader.onload = function (e) {
-                    if (statusEl) statusEl.innerHTML = '✅ फाइल तयार भयो: <b>' + (file.name || 'document.pdf') + '</b>';
-                    onReady(e.target.result, file.name || 'document.pdf');
-                };
-                reader.onerror = function () {
-                    if (statusEl) statusEl.innerHTML = '❌ फाइल पढ्न सकिएन। फेरि प्रयास गर्नुहोस्।';
-                    alert('फाइल पढ्न सकिएन। कृपया फेरि प्रयास गर्नुहोस्।');
-                };
-                reader.readAsDataURL(file);
-                return;
-            }
-
-            let imgReader = new FileReader();
-            imgReader.onload = function (e) {
-                let img = new Image();
-                img.onload = function () {
-                    const MAX_DIM = 1200;
-                    let w = img.width, h = img.height;
-                    if (w > MAX_DIM || h > MAX_DIM) {
-                        if (w >= h) { h = Math.round(h * (MAX_DIM / w)); w = MAX_DIM; }
-                        else { w = Math.round(w * (MAX_DIM / h)); h = MAX_DIM; }
-                    }
-                    let canvas = document.createElement('canvas');
-                    canvas.width = w; canvas.height = h;
-                    let ctx = canvas.getContext('2d');
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, w, h);
-                    ctx.drawImage(img, 0, 0, w, h);
-
-                    let quality = 0.7;
-                    let dataUrl = canvas.toDataURL('image/jpeg', quality);
-
-                    let newName = (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg';
-                    if (statusEl) statusEl.innerHTML = '✅ फोटो तयार भयो: <b>' + newName + '</b>';
-                    onReady(dataUrl, newName);
-                };
-                img.src = e.target.result;
-            };
-            imgReader.readAsDataURL(file);
-        }
-
         document.getElementById('sigImageUpload').addEventListener('change', function(event) {
             let file = event.target.files[0];
             if (file) {
-                readFileForUpload(file, null, function(dataUrl, name) {
-                    tempSelectedSigUrl = dataUrl;
-                });
+                let reader = new FileReader();
+                reader.onload = function(e) { tempSelectedSigUrl = e.target.result; }
+                reader.readAsDataURL(file);
             }
         });
 
         document.getElementById('newLetterAttachment').addEventListener('change', function(event) {
             let file = event.target.files[0];
             if (file) {
-                readFileForUpload(file, null, function(dataUrl, name) {
-                    tempAttachmentUrl = dataUrl;
-                    tempAttachmentName = name || 'camera_capture.jpg';
-                });
+                let reader = new FileReader();
+                reader.onload = function(e) {
+                    tempAttachmentUrl = e.target.result;
+                    tempAttachmentName = file.name || 'camera_capture.jpg';
+                }
+                reader.readAsDataURL(file);
             }
         });
 
         document.getElementById('modalFileUpload').addEventListener('change', function(event) {
             let file = event.target.files[0];
             if (file) {
-                let statusEl = document.getElementById('currentAttachmentInfo');
-                readFileForUpload(file, statusEl, function(dataUrl, name) {
-                    tempAttachmentUrl = dataUrl;
-                    tempAttachmentName = name || 'camera_capture.jpg';
-                });
+                let reader = new FileReader();
+                reader.onload = function(e) {
+                    tempAttachmentUrl = e.target.result;
+                    tempAttachmentName = file.name || 'camera_capture.jpg';
+                }
+                reader.readAsDataURL(file);
             }
         });
 
@@ -1501,7 +1437,7 @@
                 win.document.write(`<iframe src="${item.attachment.url}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
                 win.document.title = item.attachment.name || docName;
             } else {
-                alert(docName + ' को फाइल उपलब्ध छैन वा गुगल सिटबाट तान्न बाँकी छ। कृपया केहीबेर पर्खनुहोस्।');
+                alert(docName + ' को स्क्यान गरिएको वास्तविक फाइल उपलब्ध छैन। कृपया नयाँ एटेचमेन्ट अपलोड गर्नुहोस्।');
             }
         }
 
@@ -1602,70 +1538,26 @@
         const LS_KEY = "apf_letters_data";
         let syncTimer = null;
         let isRestoring = false;
-        let isPulling = false;
-        let isPushing = false;
-        let pendingPush = false;
 
         function configured() {
             return GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL.indexOf("script.google.com") !== -1;
         }
 
-        function setSyncStatus(text, ok) {
-            let el = document.getElementById('sheetSyncStatus');
-            if (!el) {
-                el = document.createElement('div');
-                el.id = 'sheetSyncStatus';
-                el.style.cssText = 'position:fixed;bottom:10px;right:10px;z-index:99999;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;box-shadow:0 2px 6px rgba(0,0,0,0.15);transition:opacity .3s;';
-                document.body.appendChild(el);
-            }
-            el.textContent = text;
-            el.style.background = ok ? '#dcfce7' : '#fee2e2';
-            el.style.color = ok ? '#166534' : '#991b1b';
-            el.style.opacity = '1';
-            clearTimeout(el._hideTimer);
-            el._hideTimer = setTimeout(function () { el.style.opacity = '0'; }, 4000);
-        }
-
-        const SHEET_FIELD_LIMIT = 45000;
-
-        function buildSyncPayload() {
-            const source = (typeof lettersData !== "undefined" ? lettersData : []);
-            return source.map(function (item) {
-                let copy = Object.assign({}, item);
-                if (copy.attachment && copy.attachment.url && copy.attachment.url.length > SHEET_FIELD_LIMIT) {
-                    copy.attachment = { url: '', name: copy.attachment.name, localOnly: true };
-                }
-                if (copy.signature && copy.signature.length > SHEET_FIELD_LIMIT) {
-                    copy.signature = null;
-                    copy.signatureLocalOnly = true;
-                }
-                return copy;
-            });
-        }
-
         function pushToSheet() {
             if (!configured() || isRestoring) return;
-            if (isPushing) { pendingPush = true; return; }
-            isPushing = true;
             try {
                 fetch(GOOGLE_SCRIPT_URL, {
                     method: "POST",
                     mode: "no-cors",
                     headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ action: "sync", data: buildSyncPayload() })
+                    body: JSON.stringify({ action: "sync", data: (typeof lettersData !== "undefined" ? lettersData : []) })
                 }).then(function () {
                     console.log("[Sheet Sync] डेटा Google Sheet मा पठाइयो");
-                    setSyncStatus("☁️ Google Sheet मा पठाइयो", true);
                 }).catch(function (err) {
                     console.warn("[Sheet Sync] पठाउन सकिएन:", err);
-                    setSyncStatus("⚠️ Sheet मा पठाउन सकिएन (इन्टरनेट जाँच्नुहोस्)", false);
-                }).finally(function () {
-                    isPushing = false;
-                    if (pendingPush) { pendingPush = false; queueSync(); }
                 });
             } catch (err) {
                 console.warn("[Sheet Sync] त्रुटि:", err);
-                isPushing = false;
             }
         }
 
@@ -1674,78 +1566,30 @@
             syncTimer = setTimeout(pushToSheet, 1000);
         }
 
-        function mergeSheetData(sheetData) {
-            const sheetMap = {};
-            sheetData.forEach(function (d) { sheetMap[d.id] = d; });
-
-            const merged = sheetData.map(function (d) { return Object.assign({}, d); });
-
-            lettersData.forEach(function (localItem) {
-                const sheetItem = sheetMap[localItem.id];
-                if (!sheetItem) {
-                    merged.push(localItem);
-                    return;
-                }
-                const mergedItem = merged.find(function (m) { return m.id === localItem.id; });
-                if (!mergedItem) return;
-                if ((!mergedItem.attachment || !mergedItem.attachment.url) && localItem.attachment && localItem.attachment.url) {
-                    mergedItem.attachment = localItem.attachment;
-                }
-                if (!mergedItem.signature && localItem.signature) {
-                    mergedItem.signature = localItem.signature;
-                }
-            });
-
-            return merged;
-        }
-
         function pullFromSheet(force) {
-            if (!configured() || isPulling) return;
-            isPulling = true;
-
-            const controller = (typeof AbortController !== "undefined") ? new AbortController() : null;
-            const timeoutId = controller ? setTimeout(function () { controller.abort(); }, 15000) : null;
-
-            fetch(GOOGLE_SCRIPT_URL + "?action=list&t=" + Date.now(), {
-                method: "GET",
-                cache: "no-store",
-                signal: controller ? controller.signal : undefined
-            })
-                .then(function (response) {
-                    if (!response.ok) throw new Error("HTTP " + response.status);
-                    return response.json();
-                })
-                .then(function (res) {
-                    if (!res || res.status !== "ok" || !Array.isArray(res.data)) {
-                        throw new Error("अनपेक्षित जवाफ (Sheet सिंकको सेटअप जाँच्नुहोस्)");
+            if (!configured()) return;
+            const cb = "__sheetCb_" + Date.now();
+            window[cb] = function (res) {
+                try {
+                    if (!res || res.status !== "ok" || !Array.isArray(res.data) || res.data.length === 0) return;
+                    const hasLocal = !!localStorage.getItem(LS_KEY);
+                    if (!hasLocal || force === true) {
+                        isRestoring = true;
+                        lettersData = res.data;
+                        localStorage.setItem(LS_KEY, JSON.stringify(res.data));
+                        if (typeof renderAllTables === "function") renderAllTables();
+                        if (typeof updateDashboardCounts === "function") updateDashboardCounts();
+                        isRestoring = false;
                     }
-                    isRestoring = true;
-                    lettersData = mergeSheetData(res.data);
-                    try {
-                        let dataToStore = lettersData.map(item => {
-                            let clone = Object.assign({}, item);
-                            if (clone.attachment && clone.attachment.url && clone.attachment.url.length > 50000) {
-                                clone.attachment = { url: '', name: clone.attachment.name, localOnly: true };
-                            }
-                            return clone;
-                        });
-                        localStorage.setItem(LS_KEY, JSON.stringify(dataToStore));
-                    } catch (e) {
-                        console.warn('[Sheet Sync] मर्ज गरिएको डेटा यन्त्रमा सुरक्षित गर्न सकिएन:', e);
-                    }
-                    if (typeof renderAllTables === "function") renderAllTables();
-                    if (typeof updateDashboardCounts === "function") updateDashboardCounts();
-                    setSyncStatus("✅ Sheet सँग मिलाइयो (" + res.data.length + " वटा पत्र)", true);
-                })
-                .catch(function (err) {
-                    console.warn("[Sheet Sync] Sheet बाट तान्न सकिएन:", err);
-                    setScanStatus("⚠️ Sheet बाट पत्रहरू तान्न सकिएन", false);
-                })
-                .finally(function () {
-                    if (timeoutId) clearTimeout(timeoutId);
-                    isRestoring = false;
-                    isPulling = false;
-                });
+                } finally {
+                    delete window[cb];
+                    if (s && s.parentNode) s.parentNode.removeChild(s);
+                }
+            };
+            const s = document.createElement("script");
+            s.src = GOOGLE_SCRIPT_URL + "?callback=" + cb + "&t=" + Date.now();
+            s.onerror = function () { console.warn("[Sheet Sync] Sheet बाट लोड गर्न सकिएन"); };
+            document.body.appendChild(s);
         }
 
         const _origSave = window.saveToLocalStorage;
@@ -1757,9 +1601,8 @@
 
         const _origOnload = window.onload;
         window.onload = function () {
-            if (typeof _origOnload === "function") _origOnload.apply(this, arguments);,
+            if (typeof _origOnload === "function") _origOnload.apply(this, arguments);
             pullFromSheet(false);
-            setInterval(function () { pullFromSheet(false); }, 45000);
         };
 
         if (!configured()) {
