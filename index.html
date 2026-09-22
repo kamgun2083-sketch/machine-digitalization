@@ -973,7 +973,7 @@
         </div>
     </div>
 
-    <!-- नयाँ पत्र थप्ने मोडल (क्यामेरा र फाइल दुवै अप्सन सहित) -->
+    <!-- नयाँ पत्र थप्ने मोडल -->
     <div id="addLetterModal" class="modal">
         <div class="modal-content">
             <h3>नयाँ पत्र दर्ता / चलानी थप्ने फारम</h3>
@@ -1043,71 +1043,6 @@
                 sender: 'सशस्त्र प्रहरी बल, नेपाल प्रधान कार्यालय',
                 senderDispNo: 'च.नं. २४५ (०८३/०८४)',
                 subject: 'वार्षिक सुरक्षा नीतिको कार्यान्वयन सम्बन्धमा',
-                date: '२०८३-०६-०६',
-                signature: null,
-                attachment: null,
-                isCompleted: false
-            },
-            {
-                id: 'row-default-admin-1',
-                branch: 'admin',
-                type: 'chalani',
-                regNo: 'चलानी नं. ४५२',
-                sender: 'मानव स्रोत विभाग',
-                senderDispNo: '-',
-                subject: 'मानव स्रोत विभाग - कर्मचारी सरुवा तथा काज सम्बन्धी विवरण',
-                date: '२०८३-०६-०६',
-                signature: null,
-                attachment: null,
-                isCompleted: false
-            },
-            {
-                id: 'row-default-hr-1',
-                branch: 'hr',
-                type: 'darta',
-                regNo: 'दर्ता नं. ७५',
-                sender: 'मानव स्रोत निर्देशनालय',
-                senderDispNo: 'च.नं. १ीय',
-                subject: 'दर्जा वृद्धिका लागि सिफारिस तथा तालिम विवरण',
-                date: '२०८३-०६-०६',
-                signature: null,
-                attachment: null,
-                isCompleted: false
-            },
-            {
-                id: 'row-default-training-1',
-                branch: 'training',
-                type: 'darta',
-                regNo: 'दर्ता नं. ९०',
-                sender: 'प्रशिक्षु केन्द्र',
-                senderDispNo: 'च.नं. ७८',
-                subject: 'दंगा नियन्त्रण रिफ्रेसर तालिम',
-                date: '२०८३-०६-०६',
-                signature: null,
-                attachment: null,
-                isCompleted: false
-            },
-            {
-                id: 'row-default-mgmt-1',
-                branch: 'management',
-                type: 'darta',
-                regNo: 'दर्ता नं. ११२',
-                sender: 'केन्द्रीय जिन्सी शाखा',
-                senderDispNo: 'च.नं. ५६',
-                subject: 'युनिफर्म कपडा तथा जुत्ता सेट',
-                date: '२०८३-०६-०६',
-                signature: null,
-                attachment: null,
-                isCompleted: false
-            },
-            {
-                id: 'row-default-acc-1',
-                branch: 'accounts',
-                type: 'darta',
-                regNo: 'दर्ता नं. ३४',
-                sender: 'आर्थिक प्रशासन निर्देशनालय',
-                senderDispNo: 'च.नं. १८',
-                subject: 'चौमासिक बजेट तथा खर्चको विवरण पेस गर्ने सम्बन्धमा',
                 date: '२०८३-०६-०६',
                 signature: null,
                 attachment: null,
@@ -1190,22 +1125,6 @@
                             <td><button class="btn-action btn-reply" onclick="openLetterPad('${item.id}', '${item.subject}', '${item.sender}', '${branchLabel}', '${item.senderDispNo}')">✍️ जवाफ / लेटर प्याड</button></td>
                             <td id="statusCell-${item.id}">${signCellHTML}</td>
                         `;
-                    } else if (branch === 'admin' || branch === 'hr' || branch === 'accounts') {
-                        tr.innerHTML = `
-                            <td>${rowNum}</td>
-                            <td>${badgeHTML}</td>
-                            <td><strong>${item.regNo}</strong></td>
-                            <td>${item.sender}</td>
-                            <td>${item.senderDispNo}</td>
-                            <td>${item.subject}</td>
-                            <td>${item.date}</td>
-                            <td>
-                                <button class="btn-action btn-view" onclick="openPDF('${item.subject}', '${item.id}')">📄 हेर्नुहोस्</button>
-                                <button class="btn-action" style="background-color: #f1f5f9; color: #475569; margin-left: 4px;" onclick="openAttachmentModal('${item.id}')">📎 एटेचमेन्ट</button>
-                            </td>
-                            <td><button class="btn-action btn-reply" onclick="openLetterPad('${item.id}', '${item.subject}', '${item.sender}', '${branchLabel}', '${item.senderDispNo}')">✍️ जवाफ / लेटर प्याड</button></td>
-                            <td id="statusCell-${item.id}">${signCellHTML}</td>
-                        `;
                     } else {
                         tr.innerHTML = `
                             <td>${rowNum}</td>
@@ -1214,9 +1133,11 @@
                             <td>${item.sender}</td>
                             <td>${item.senderDispNo}</td>
                             <td>${item.subject}</td>
+                            ${branch !== 'admin' && branch !== 'hr' && branch !== 'accounts' ? '' : `<td>${item.date || '२०८३-०६-०६'}</td>`}
                             <td>
-                                <button class="btn-action btn-view" onclick="openPDF('${item.subject}', '${item.id}')">📄 पत्र हेर्नुहोस्</button>
-                                <button class="btn-action" style="background-color: #f1f5f9; color: #475569; margin-left: 4px;" onclick="openAttachmentModal('${item.id}')">📎 एटेचमेन्ट</button></td>
+                                <button class="btn-action btn-view" onclick="openPDF('${item.subject}', '${item.id}')">📄 हेर्नुहोस्</button>
+                                <button class="btn-action" style="background-color: #f1f5f9; color: #475569; margin-left: 4px;" onclick="openAttachmentModal('${item.id}')">📎 एटेचमेन्ट</button>
+                            </td>
                             <td><button class="btn-action btn-reply" onclick="openLetterPad('${item.id}', '${item.subject}', '${item.sender}', '${branchLabel}', '${item.senderDispNo}')">✍️ जवाफ / लेटर प्याड</button></td>
                             <td id="statusCell-${item.id}">${signCellHTML}</td>
                         `;
@@ -1366,11 +1287,8 @@
             }
         }
 
-        // फाईल ह्याङ्ग नहुने गरी स्मूथली प्रोसेस गर्न Blob र Base64 अप्टिमाइज्ड फंक्सन
         function readFileForUpload(file, statusEl, onReady) {
             if (!file) return;
-            
-            const isPDF = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
             if (statusEl) statusEl.innerHTML = '⏳ फाइल लोड हुँदैछ, कृपया पर्खनुहोस्...';
 
             let reader = new FileReader();
@@ -1450,7 +1368,6 @@
             }
         }
 
-        // बहु-पाना PDF तथा ठूला फाइलहरू कम्प्युटर र मोबाइलमा बिना ह्याङ्ग स्मूथली खोल्ने आधुनिक तरिका
         function openPDF(docName, id) {
             let item = lettersData.find(d => d.id === id);
             if (item && item.attachment && item.attachment.url) {
@@ -1471,7 +1388,7 @@
                     `);
                     win.document.close();
                 } else {
-                    alert('कृपया पप-अप ब्लोकर (Pop-up Blocker) बन्द गर्नुहोस्, जसले गर्दा फाइल नयाँ ट्याबमा खुल्न सकोस्।');
+                    alert('कृपया पप-अप ब्लोकर (Pop-up Blocker) बन्द गर्नुहोस्।');
                 }
             } else {
                 alert(docName + ' को कागजात वा फाइल उपलब्ध छैन। कृपया नयाँ एटेचमेन्ट अपलोड गर्नुहोस्।');
@@ -1566,7 +1483,7 @@
         }
     </script>
 
-    <!-- GOOGLE SHEET SYNC MODULE -->
+    <!-- GOOGLE SHEET SYNC MODULE (समस्या समाधान गरिएको - Sheet Cell Limit मिलाइएको) -->
     <script>
     (function () {
         "use strict";
@@ -1580,7 +1497,8 @@
             return GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL.indexOf("script.google.com") !== -1;
         }
 
-        const SHEET_FIELD_LIMIT = 450000;
+        // Google Sheet को सेल लिमिट (50k characters) भन्दा कम राखिएको (49000) ताकि ठूला फाइल सिंक गर्दा एरर नआओस्
+        const SHEET_FIELD_LIMIT = 49000;
 
         function buildSyncPayload() {
             const source = (typeof lettersData !== "undefined" ? lettersData : []);
@@ -1656,7 +1574,7 @@
                     try {
                         localStorage.setItem(LS_KEY, JSON.stringify(lettersData));
                     } catch (e) {
-                        console.warn('[Sheet Sync] मर्ज गरिएको डेटा यन्त्रमा सुरक्षित गर्न सकिएन:', e);
+                        console.warn('[Sheet Sync] डेटा सुरक्षित गर्न सकिएन:', e);
                     }
                     if (typeof renderAllTables === "function") renderAllTables();
                     if (typeof updateDashboardCounts === "function") updateDashboardCounts();
@@ -1668,7 +1586,7 @@
                     if (s && s.parentNode) s.parentNode.removeChild(s);
                 }
             };
-            const s = document.createElement("cloud");
+            const s = document.createElement("script");
             s.src = GOOGLE_SCRIPT_URL + "?callback=" + cb + "&t=" + Date.now();
             s.onerror = function () { console.warn("[Sheet Sync] Sheet बाट लोड गर्न सकिएन"); };
             document.body.appendChild(s);
@@ -1687,10 +1605,6 @@
             pullFromSheet(false);
             setInterval(function () { pullFromSheet(false); }, 45000);
         };
-
-        if (!configured()) {
-            console.warn("[Sheet Sync] GOOGLE_SCRIPT_URL राखिएको छैन।");
-        }
     })();
     </script>
 </body>
