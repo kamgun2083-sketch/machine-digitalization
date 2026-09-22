@@ -673,7 +673,7 @@
                 <div class="data-section">
                     <h2>हालैका गतिविधिहरू र जरुरी पत्रहरूको सारांश</h2>
                     <p style="font-size: 14px; color: #475569; line-height: 1.6;">
-                        स्वागत छ! माथिका कार्डहरूमा क्लिक गरेर सीधै सम्बन्धित पत्रहरू हेर्न सक्नुहुन्छ वा बायाँपट्टिको मेनु प्रयोग गर्नुहोस्। डाटा गुगल सिटमा सुरक्षित हुनेछ[cite: 3]।
+                        स्वागत छ! माथिका कार्डहरूमा क्लिक गरेर सीधै सम्बन्धित पत्रहरू हेर्न सक्नुहुन्छ वा बायाँपट्टिको मेनु प्रयोग गर्नुहोस्। डाटा गुगल सिटमा सुरक्षित हुनेछ।
                     </p>
                     <div style="margin-top: 15px;">
                         <button class="btn-action btn-primary-add" onclick="openModal('addLetterModal')">➕ नयाँ पत्र दर्ता/चलानी थप्ने</button>
@@ -1127,10 +1127,17 @@
 
         function saveToLocalStorage() {
             try {
-                localStorage.setItem('apf_letters_data', JSON.stringify(lettersData));
+                // ठूला एटेचमेन्टहरूलाई LocalStorage मा सेभ हुनबाट रोकेर साइज घटाउने
+                let dataToStore = lettersData.map(item => {
+                    let clone = Object.assign({}, item);
+                    if (clone.attachment && clone.attachment.url && clone.attachment.url.length > 50000) {
+                        clone.attachment = { url: '', name: clone.attachment.name, localOnly: true };
+                    }
+                    return clone;
+                });
+                localStorage.setItem('apf_letters_data', JSON.stringify(dataToStore));
             } catch (e) {
                 console.warn('[Storage] यन्त्रमा सुरक्षित गर्न सकिएन:', e);
-                alert('⚠️ यन्त्रको भण्डारण (storage) भरिएकाले नयाँ डेटा सुरक्षित गर्न सकिएन। पुराना ठूला एटेचमेन्टहरू भएका पत्रहरू मेटाउनुहोस् वा सानो फोटो प्रयोग गर्नुहोस्। तपाईंको यो पत्र गुगल सिटमा भने पठाइने कोसिस गरिनेछ।');
             }
             renderAllTables();
             updateDashboardCounts();
@@ -1367,7 +1374,7 @@
             }
         }
 
-        const MAX_RAW_FILE_MB = 20;
+        const MAX_RAW_FILE_MB = 25;
 
         function readFileForUpload(file, statusEl, onReady) {
             if (!file) return;
@@ -1397,7 +1404,7 @@
             imgReader.onload = function (e) {
                 let img = new Image();
                 img.onload = function () {
-                    const MAX_DIM = 1400;
+                    const MAX_DIM = 1200;
                     let w = img.width, h = img.height;
                     if (w > MAX_DIM || h > MAX_DIM) {
                         if (w >= h) { h = Math.round(h * (MAX_DIM / w)); w = MAX_DIM; }
@@ -1410,28 +1417,14 @@
                     ctx.fillRect(0, 0, w, h);
                     ctx.drawImage(img, 0, 0, w, h);
 
-                    let quality = 0.75;
+                    let quality = 0.7;
                     let dataUrl = canvas.toDataURL('image/jpeg', quality);
-                    let tries = 0;
-                    while (dataUrl.length > 700000 && quality > 0.3 && tries < 6) {
-                        quality -= 0.1;
-                        dataUrl = canvas.toDataURL('image/jpeg', quality);
-                        tries++;
-                    }
 
                     let newName = (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg';
-                    if (statusEl) statusEl.innerHTML = '✅ फोटो तयार भयो: <b>' + newName + '</b> (' + Math.round(dataUrl.length / 1024) + ' KB)';
+                    if (statusEl) statusEl.innerHTML = '✅ फोटो तयार भयो: <b>' + newName + '</b>';
                     onReady(dataUrl, newName);
                 };
-                img.onerror = function () {
-                    if (statusEl) statusEl.innerHTML = '❌ फोटो प्रोसेस गर्न सकिएन। फेरि प्रयास गर्नुहोस्।';
-                    alert('फोटो पढ्न सकिएन। कृपया फेरि प्रयास गर्नुहोस्।');
-                };
                 img.src = e.target.result;
-            };
-            imgReader.onerror = function () {
-                if (statusEl) statusEl.innerHTML = '❌ फाइल पढ्न सकिएन। फेरि प्रयास गर्नुहोस्।';
-                alert('फाइल पढ्न सकिएन। कृपया फेरि प्रयास गर्नुहोस्।');
             };
             imgReader.readAsDataURL(file);
         }
@@ -1507,10 +1500,8 @@
                 let win = window.open();
                 win.document.write(`<iframe src="${item.attachment.url}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
                 win.document.title = item.attachment.name || docName;
-            } else if (item && item.attachment && item.attachment.localOnly) {
-                alert(docName + ' को फाइल ठूलो साइजको भएकाले गुगल सिटमा पठाइएको छैन - यो फाइल जुन यन्त्र/ब्राउजरबाट अपलोड गरिएको थियो, त्यहीँबाट मात्र हेर्न मिल्छ। यस यन्त्रमा फेरि हेर्न चाहनुहुन्छ भने त्यहाँबाट पुनः एटेच गर्नुहोस्।');
             } else {
-                alert(docName + ' को स्क्यान गरिएको वास्तविक फाइल उपलब्ध छैन। कृपया नयाँ एटेचमेन्ट अपलोड गर्नुहोस्।');
+                alert(docName + ' को फाइल उपलब्ध छैन वा गुगल सिटबाट तान्न बाँकी छ। कृपया केहीबेर पर्खनुहोस्।');
             }
         }
 
@@ -1731,7 +1722,14 @@
                     isRestoring = true;
                     lettersData = mergeSheetData(res.data);
                     try {
-                        localStorage.setItem(LS_KEY, JSON.stringify(lettersData));
+                        let dataToStore = lettersData.map(item => {
+                            let clone = Object.assign({}, item);
+                            if (clone.attachment && clone.attachment.url && clone.attachment.url.length > 50000) {
+                                clone.attachment = { url: '', name: clone.attachment.name, localOnly: true };
+                            }
+                            return clone;
+                        });
+                        localStorage.setItem(LS_KEY, JSON.stringify(dataToStore));
                     } catch (e) {
                         console.warn('[Sheet Sync] मर्ज गरिएको डेटा यन्त्रमा सुरक्षित गर्न सकिएन:', e);
                     }
@@ -1741,7 +1739,7 @@
                 })
                 .catch(function (err) {
                     console.warn("[Sheet Sync] Sheet बाट तान्न सकिएन:", err);
-                    setSyncStatus("⚠️ Sheet बाट पत्रहरू तान्न सकिएन", false);
+                    setScanStatus("⚠️ Sheet बाट पत्रहरू तान्न सकिएन", false);
                 })
                 .finally(function () {
                     if (timeoutId) clearTimeout(timeoutId);
@@ -1759,7 +1757,7 @@
 
         const _origOnload = window.onload;
         window.onload = function () {
-            if (typeof _origOnload === "function") _origOnload.apply(this, arguments);
+            if (typeof _origOnload === "function") _origOnload.apply(this, arguments);,
             pullFromSheet(false);
             setInterval(function () { pullFromSheet(false); }, 45000);
         };
