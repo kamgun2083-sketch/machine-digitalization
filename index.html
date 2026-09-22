@@ -865,7 +865,7 @@
         </div>
 
         <footer>
-            &copy; २०२६ काठमाडौं उपत्यका प्रहरी सशस्त्र प्रहरी गण नं. २, महाराजगंज। सर्वाधिकार सुरक्षित।
+            &copy; २०२६ काठमाडौं उपत्यका प्रहरी सशस्त्र प्रहरी गण नं. २, महाराजगंज। सर्वाधिकार सुरक्षित। System Designed & Developed by: Baikuntha Subedi
         </footer>
     </div>
 
@@ -1126,7 +1126,12 @@
         };
 
         function saveToLocalStorage() {
-            localStorage.setItem('apf_letters_data', JSON.stringify(lettersData));
+            try {
+                localStorage.setItem('apf_letters_data', JSON.stringify(lettersData));
+            } catch (e) {
+                console.warn('[Storage] यन्त्रमा सुरक्षित गर्न सकिएन:', e);
+                alert('⚠️ यन्त्रको भण्डारण (storage) भरिएकाले नयाँ डेटा सुरक्षित गर्न सकिएन। पुराना ठूला एटेचमेन्टहरू भएका पत्रहरू मेटाउनुहोस् वा सानो फोटो प्रयोग गर्नुहोस्। तपाईंको यो पत्र गुगल सिटमा भने पठाइने कोसिस गरिनेछ।');
+            }
             renderAllTables();
             updateDashboardCounts();
         }
@@ -1362,36 +1367,111 @@
             }
         }
 
+        // ---------------------------------------------------------------
+        // फाइल/फोटो सजिलै र छिटो अपलोड होस् भनेर बनाइएको हेल्पर फंक्सन।
+        // मोबाइल क्यामेराबाट खिचेको फोटो (प्रायः ३-१० MB) लाई सिधै base64 मा
+        // राख्दा ब्राउजर ह्याङ हुने र गुगल सिटमा पठाउँदा फेल हुने भएकाले,
+        // यहाँ फोटोलाई पहिले क्यानभासमा सानो बनाई (resize + compress) त्यसपछि
+        // मात्र base64 मा बदलिन्छ। PDF लाई कम्प्रेस नगरी जस्ताको तस्तै राखिन्छ।
+        // ---------------------------------------------------------------
+        const MAX_RAW_FILE_MB = 20; // यो भन्दा ठूलो फाइल भए सुरुमै रोक्ने
+
+        function readFileForUpload(file, statusEl, onReady) {
+            if (!file) return;
+            if (file.size > MAX_RAW_FILE_MB * 1024 * 1024) {
+                alert('⚠️ यो फाइल धेरै ठूलो (' + Math.round(file.size / 1024 / 1024) + ' MB) छ। कृपया ' + MAX_RAW_FILE_MB + ' MB भन्दा सानो फाइल छान्नुहोस्।');
+                return;
+            }
+
+            const isPDF = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+            if (statusEl) statusEl.innerHTML = '⏳ फाइल तयार हुँदैछ, कृपया पर्खनुहोस्...';
+
+            if (isPDF) {
+                let reader = new FileReader();
+                reader.onload = function (e) {
+                    if (statusEl) statusEl.innerHTML = '✅ फाइल तयार भयो: <b>' + (file.name || 'document.pdf') + '</b>';
+                    onReady(e.target.result, file.name || 'document.pdf');
+                };
+                reader.onerror = function () {
+                    if (statusEl) statusEl.innerHTML = '❌ फाइल पढ्न सकिएन। फेरि प्रयास गर्नुहोस्।';
+                    alert('फाइल पढ्न सकिएन। कृपया फेरि प्रयास गर्नुहोस्।');
+                };
+                reader.readAsDataURL(file);
+                return;
+            }
+
+            // फोटो (image) भएमा resize + compress गर्ने
+            let imgReader = new FileReader();
+            imgReader.onload = function (e) {
+                let img = new Image();
+                img.onload = function () {
+                    const MAX_DIM = 1400; // लामो साइडको अधिकतम पिक्सेल
+                    let w = img.width, h = img.height;
+                    if (w > MAX_DIM || h > MAX_DIM) {
+                        if (w >= h) { h = Math.round(h * (MAX_DIM / w)); w = MAX_DIM; }
+                        else { w = Math.round(w * (MAX_DIM / h)); h = MAX_DIM; }
+                    }
+                    let canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    let ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(img, 0, 0, w, h);
+
+                    let quality = 0.75;
+                    let dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    let tries = 0;
+                    // साइज अझै धेरै भएमा गुणस्तर क्रमशः घटाउँदै लाने (गुगल सिटमा पठाउन र सजिलो होस् भनेर)
+                    while (dataUrl.length > 700000 && quality > 0.3 && tries < 6) {
+                        quality -= 0.1;
+                        dataUrl = canvas.toDataURL('image/jpeg', quality);
+                        tries++;
+                    }
+
+                    let newName = (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg';
+                    if (statusEl) statusEl.innerHTML = '✅ फोटो तयार भयो: <b>' + newName + '</b> (' + Math.round(dataUrl.length / 1024) + ' KB)';
+                    onReady(dataUrl, newName);
+                };
+                img.onerror = function () {
+                    if (statusEl) statusEl.innerHTML = '❌ फोटो प्रोसेस गर्न सकिएन। फेरि प्रयास गर्नुहोस्।';
+                    alert('फोटो पढ्न सकिएन। कृपया फेरि प्रयास गर्नुहोस्।');
+                };
+                img.src = e.target.result;
+            };
+            imgReader.onerror = function () {
+                if (statusEl) statusEl.innerHTML = '❌ फाइल पढ्न सकिएन। फेरि प्रयास गर्नुहोस्।';
+                alert('फाइल पढ्न सकिएन। कृपया फेरि प्रयास गर्नुहोस्।');
+            };
+            imgReader.readAsDataURL(file);
+        }
+
         document.getElementById('sigImageUpload').addEventListener('change', function(event) {
             let file = event.target.files[0];
             if (file) {
-                let reader = new FileReader();
-                reader.onload = function(e) { tempSelectedSigUrl = e.target.result; }
-                reader.readAsDataURL(file);
+                readFileForUpload(file, null, function(dataUrl, name) {
+                    tempSelectedSigUrl = dataUrl;
+                });
             }
         });
 
         document.getElementById('newLetterAttachment').addEventListener('change', function(event) {
             let file = event.target.files[0];
             if (file) {
-                let reader = new FileReader();
-                reader.onload = function(e) {
-                    tempAttachmentUrl = e.target.result;
-                    tempAttachmentName = file.name || 'camera_capture.jpg';
-                }
-                reader.readAsDataURL(file);
+                readFileForUpload(file, null, function(dataUrl, name) {
+                    tempAttachmentUrl = dataUrl;
+                    tempAttachmentName = name || 'camera_capture.jpg';
+                });
             }
         });
 
         document.getElementById('modalFileUpload').addEventListener('change', function(event) {
             let file = event.target.files[0];
             if (file) {
-                let reader = new FileReader();
-                reader.onload = function(e) {
-                    tempAttachmentUrl = e.target.result;
-                    tempAttachmentName = file.name || 'camera_capture.jpg';
-                }
-                reader.readAsDataURL(file);
+                let statusEl = document.getElementById('currentAttachmentInfo');
+                readFileForUpload(file, statusEl, function(dataUrl, name) {
+                    tempAttachmentUrl = dataUrl;
+                    tempAttachmentName = name || 'camera_capture.jpg';
+                });
             }
         });
 
@@ -1436,6 +1516,8 @@
                 let win = window.open();
                 win.document.write(`<iframe src="${item.attachment.url}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
                 win.document.title = item.attachment.name || docName;
+            } else if (item && item.attachment && item.attachment.localOnly) {
+                alert(docName + ' को फाइल ठूलो साइजको भएकाले गुगल सिटमा पठाइएको छैन - यो फाइल जुन यन्त्र/ब्राउजरबाट अपलोड गरिएको थियो, त्यहीँबाट मात्र हेर्न मिल्छ। यस यन्त्रमा फेरि हेर्न चाहनुहुन्छ भने त्यहाँबाट पुनः एटेच गर्नुहोस्।');
             } else {
                 alert(docName + ' को स्क्यान गरिएको वास्तविक फाइल उपलब्ध छैन। कृपया नयाँ एटेचमेन्ट अपलोड गर्नुहोस्।');
             }
@@ -1543,6 +1625,29 @@
             return GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL.indexOf("script.google.com") !== -1;
         }
 
+        // गुगल सिटको एउटा सेलमा राख्न मिल्ने डेटाको सीमा हुन्छ, र धेरै ठूलो
+        // base64 फोटो/PDF एकैचोटि पठाउँदा sync ह्याङ भए जस्तो हुन्छ वा फेल हुन्छ।
+        // त्यसैले ठूला एटेचमेन्ट/सहीलाई सिटमा नपठाई (केवल नाम/झण्डा मात्र पठाई)
+        // हल्का (metadata) डेटा मात्र पठाइन्छ - यसले दर्ता/चलानी विवरण सधैं छिटो
+        // र भरपर्दो गरी सबै यन्त्रमा देखिने सुनिश्चित गर्छ। पूरा फाइल भने त्यही
+        // यन्त्रमा (localStorage मा) सुरक्षित रहन्छ।
+        const SHEET_FIELD_LIMIT = 45000;
+
+        function buildSyncPayload() {
+            const source = (typeof lettersData !== "undefined" ? lettersData : []);
+            return source.map(function (item) {
+                let copy = Object.assign({}, item);
+                if (copy.attachment && copy.attachment.url && copy.attachment.url.length > SHEET_FIELD_LIMIT) {
+                    copy.attachment = { url: '', name: copy.attachment.name, localOnly: true };
+                }
+                if (copy.signature && copy.signature.length > SHEET_FIELD_LIMIT) {
+                    copy.signature = null;
+                    copy.signatureLocalOnly = true;
+                }
+                return copy;
+            });
+        }
+
         function pushToSheet() {
             if (!configured() || isRestoring) return;
             try {
@@ -1550,7 +1655,7 @@
                     method: "POST",
                     mode: "no-cors",
                     headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ action: "sync", data: (typeof lettersData !== "undefined" ? lettersData : []) })
+                    body: JSON.stringify({ action: "sync", data: buildSyncPayload() })
                 }).then(function () {
                     console.log("[Sheet Sync] डेटा Google Sheet मा पठाइयो");
                 }).catch(function (err) {
@@ -1566,22 +1671,55 @@
             syncTimer = setTimeout(pushToSheet, 1000);
         }
 
+        // सिटबाट आएको डेटालाई यन्त्रको स्थानीय डेटासँग मर्ज गर्ने।
+        // - सिटमा भएको तर यहाँ नभएको (अर्को यन्त्र/व्यक्तिले थपेको) विवरण थपिन्छ।
+        // - यहाँ भएको तर सिटमा नपुगेको (नसिंक भएको) विवरण जोगिन्छ, हराउँदैन।
+        // - ठूलो साइजको कारण सिटमा नपठाइएको एटेचमेन्ट/सही यही यन्त्रमा भए
+        //   त्यो पूर्ण डेटा जोगाइन्छ (सिटको खाली भर्सनले ओभरराइट गर्दैन)।
+        function mergeSheetData(sheetData) {
+            const sheetMap = {};
+            sheetData.forEach(function (d) { sheetMap[d.id] = d; });
+
+            const merged = sheetData.map(function (d) { return Object.assign({}, d); });
+
+            lettersData.forEach(function (localItem) {
+                const sheetItem = sheetMap[localItem.id];
+                if (!sheetItem) {
+                    merged.push(localItem); // यो यन्त्रमा मात्र भएको, सिटमा अझै नपुगेको विवरण
+                    return;
+                }
+                const mergedItem = merged.find(function (m) { return m.id === localItem.id; });
+                if (!mergedItem) return;
+                if ((!mergedItem.attachment || !mergedItem.attachment.url) && localItem.attachment && localItem.attachment.url) {
+                    mergedItem.attachment = localItem.attachment;
+                }
+                if (!mergedItem.signature && localItem.signature) {
+                    mergedItem.signature = localItem.signature;
+                }
+            });
+
+            return merged;
+        }
+
         function pullFromSheet(force) {
             if (!configured()) return;
             const cb = "__sheetCb_" + Date.now();
             window[cb] = function (res) {
                 try {
-                    if (!res || res.status !== "ok" || !Array.isArray(res.data) || res.data.length === 0) return;
-                    const hasLocal = !!localStorage.getItem(LS_KEY);
-                    if (!hasLocal || force === true) {
-                        isRestoring = true;
-                        lettersData = res.data;
-                        localStorage.setItem(LS_KEY, JSON.stringify(res.data));
-                        if (typeof renderAllTables === "function") renderAllTables();
-                        if (typeof updateDashboardCounts === "function") updateDashboardCounts();
-                        isRestoring = false;
+                    if (!res || res.status !== "ok" || !Array.isArray(res.data)) return;
+                    isRestoring = true;
+                    lettersData = mergeSheetData(res.data);
+                    try {
+                        localStorage.setItem(LS_KEY, JSON.stringify(lettersData));
+                    } catch (e) {
+                        console.warn('[Sheet Sync] मर्ज गरिएको डेटा यन्त्रमा सुरक्षित गर्न सकिएन:', e);
                     }
+                    if (typeof renderAllTables === "function") renderAllTables();
+                    if (typeof updateDashboardCounts === "function") updateDashboardCounts();
+                } catch (e) {
+                    console.warn("[Sheet Sync] मर्ज गर्दा त्रुटि:", e);
                 } finally {
+                    isRestoring = false;
                     delete window[cb];
                     if (s && s.parentNode) s.parentNode.removeChild(s);
                 }
@@ -1603,6 +1741,9 @@
         window.onload = function () {
             if (typeof _origOnload === "function") _origOnload.apply(this, arguments);
             pullFromSheet(false);
+            // हरेक ४५ सेकेन्डमा अरू यन्त्र/प्रयोगकर्ताले सिटमा थपेका
+            // दर्ता/चलानी विवरणहरू स्वतः देखियोस् भनेर पुनः-पुल गर्ने
+            setInterval(function () { pullFromSheet(false); }, 45000);
         };
 
         if (!configured()) {
