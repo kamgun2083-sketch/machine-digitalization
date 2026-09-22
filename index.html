@@ -673,7 +673,7 @@
                 <div class="data-section">
                     <h2>हालैका गतिविधिहरू र जरुरी पत्रहरूको सारांश</h2>
                     <p style="font-size: 14px; color: #475569; line-height: 1.6;">
-                        स्वागत छ! माथिका कार्डहरूमा क्लिक गरेर सीधै सम्बन्धित पत्रहरू हेर्न सक्नुहुन्छ वा बायाँपट्टिको मेनु प्रयोग गर्नुहोस्। डाटा गुगल सिटमा सुरक्षित हुनेछ[cite: 3]।
+                        स्वागत छ! माथिका कार्डहरूमा क्लिक गरेर सीधै सम्बन्धित पत्रहरू हेर्न सक्नुहुन्छ वा बायाँपट्टिको मेनु प्रयोग गर्नुहोस्।
                     </p>
                     <div style="margin-top: 15px;">
                         <button class="btn-action btn-primary-add" onclick="openModal('addLetterModal')">➕ नयाँ पत्र दर्ता/चलानी थप्ने</button>
@@ -1006,8 +1006,8 @@
                 <option value="accounts">आर्थिक प्रशासन शाखा</option>
             </select>
 
-            <label>बाहिरी कार्यालयबाट आएको पत्र एटेच गर्ने (फोटो खिच्नुहोस् वा PDF/Image छान्नुहोस्):</label>
-            <input type="file" id="newLetterAttachment" accept=".pdf,image/*" capture="environment" style="margin-bottom: 15px; padding: 5px;">
+            <label>बाहिरी कार्यालयबाट आएको पत्र एटेच गर्ने (PDF वा Image छान्नुहोस्):</label>
+            <input type="file" id="newLetterAttachment" accept=".pdf,image/*" style="margin-bottom: 15px; padding: 5px;">
 
             <div class="modal-buttons">
                 <button class="btn-close" onclick="closeModal('addLetterModal')">रद्द गर्नुहोस्</button>
@@ -1024,8 +1024,8 @@
             <div id="currentAttachmentInfo" style="margin-bottom: 15px; font-size: 13px; color: #475569; background: #f8fafc; padding: 10px; border-radius: 4px;">
                 हाल कुनै कागजात एटेच गरिएको छैन।
             </div>
-            <label>नयाँ पत्रको फोटो खिच्नुहोस् वा फाइल अपलोड गर्नुहोस् (PDF / Image):</label>
-            <input type="file" id="modalFileUpload" accept=".pdf,image/*" capture="environment" style="margin-bottom: 15px; padding: 5px;">
+            <label>नयाँ पत्रको फाइल अपलोड गर्नुहोस् (PDF / Image):</label>
+            <input type="file" id="modalFileUpload" accept=".pdf,image/*" style="margin-bottom: 15px; padding: 5px;">
             <div class="modal-buttons">
                 <button class="btn-close" onclick="closeModal('attachmentModal')">बन्द गर्ने</button>
                 <button class="btn-submit" onclick="saveAttachment()">अपलोड गरी सेभ गर्ने</button>
@@ -1130,7 +1130,7 @@
                 localStorage.setItem('apf_letters_data', JSON.stringify(lettersData));
             } catch (e) {
                 console.warn('[Storage] यन्त्रमा सुरक्षित गर्न सकिएन:', e);
-                alert('⚠️ यन्त्रको भण्डारण (storage) भरिएकाले नयाँ डेटा सुरक्षित गर्न सकिएन। पुराना ठूला एटेचमेन्टहरू भएका पत्रहरू मेटाउनुहोस् वा सानो फोटो प्रयोग गर्नुहोस्। तपाईंको यो पत्र गुगल सिटमा भने पठाइने कोसिस गरिनेछ।');
+                alert('⚠️ यन्त्रको भण्डारण भरिएकाले नयाँ डेटा सुरक्षित गर्न सकिएन। पुराना ठूला एटेचमेन्टहरू भएका पत्रहरू मेटाउनुहोस्।');
             }
             renderAllTables();
             updateDashboardCounts();
@@ -1155,7 +1155,6 @@
                         item.senderDispNo.toLowerCase().includes(q)
                     );
                 } else {
-                    // सम्पन्न भइसकेका पत्रहरू सामान्य सूचीमा नदेखिने तर सर्च गर्दा देखा पर्ने
                     filtered = filtered.filter(item => !item.isCompleted);
                 }
 
@@ -1237,7 +1236,7 @@
             if (item) {
                 item.isCompleted = true;
                 saveToLocalStorage();
-                alert('पत्र सम्पन्न भई सूचीबाट हटाइएको छ। आवश्यक पर्दा सर्चबारबाट खोजेर हेर्न सक्नुहुन्छ।');
+                alert('पत्र सम्पन्न भई सूचीबाट हटाइएको छ।');
             }
         }
 
@@ -1279,7 +1278,7 @@
                 lettersData.push(newItem);
                 saveToLocalStorage();
 
-                alert('नयाँ पत्र / विवरण सफलतापूर्वक थपियो र गुगल सिटमा सिंक भयो!');
+                alert('नयाँ पत्र / विवरण सफलतापूर्वक थपियो!');
                 closeModal('addLetterModal');
                 
                 document.getElementById('regDispatchNo').value = '';
@@ -1363,77 +1362,27 @@
                 }
                 closeModal('attachmentModal');
             } else {
-                alert('कृपया एटेच गर्नका लागि कुनै फाइल छान्नुहोस् वा फोटो खिच्नुहोस्!');
+                alert('कृपया एटेच गर्नका लागि कुनै फाइल छान्नुहोस्!');
             }
         }
 
-        const MAX_RAW_FILE_MB = 20;
-
+        // फाईल ह्याङ्ग नहुने गरी स्मूथली प्रोसेस गर्न Blob र Base64 अप्टिमाइज्ड फंक्सन
         function readFileForUpload(file, statusEl, onReady) {
             if (!file) return;
-            if (file.size > MAX_RAW_FILE_MB * 1024 * 1024) {
-                alert('⚠️ यो फाइल धेरै ठूलो (' + Math.round(file.size / 1024 / 1024) + ' MB) छ। कृपया ' + MAX_RAW_FILE_MB + ' MB भन्दा सानो फाइल छान्नुहोस्।');
-                return;
-            }
-
+            
             const isPDF = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
-            if (statusEl) statusEl.innerHTML = '⏳ फाइल तयार हुँदैछ, कृपया पर्खनुहोस्...';
+            if (statusEl) statusEl.innerHTML = '⏳ फाइल लोड हुँदैछ, कृपया पर्खनुहोस्...';
 
-            if (isPDF) {
-                let reader = new FileReader();
-                reader.onload = function (e) {
-                    if (statusEl) statusEl.innerHTML = '✅ फाइल तयार भयो: <b>' + (file.name || 'document.pdf') + '</b>';
-                    onReady(e.target.result, file.name || 'document.pdf');
-                };
-                reader.onerror = function () {
-                    if (statusEl) statusEl.innerHTML = '❌ फाइल पढ्न सकिएन। फेरि प्रयास गर्नुहोस्।';
-                    alert('फाइल पढ्न सकिएन। कृपया फेरि प्रयास गर्नुहोस्।');
-                };
-                reader.readAsDataURL(file);
-                return;
-            }
-
-            let imgReader = new FileReader();
-            imgReader.onload = function (e) {
-                let img = new Image();
-                img.onload = function () {
-                    const MAX_DIM = 1400;
-                    let w = img.width, h = img.height;
-                    if (w > MAX_DIM || h > MAX_DIM) {
-                        if (w >= h) { h = Math.round(h * (MAX_DIM / w)); w = MAX_DIM; }
-                        else { w = Math.round(w * (MAX_DIM / h)); h = MAX_DIM; }
-                    }
-                    let canvas = document.createElement('canvas');
-                    canvas.width = w; canvas.height = h;
-                    let ctx = canvas.getContext('2d');
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, w, h);
-                    ctx.drawImage(img, 0, 0, w, h);
-
-                    let quality = 0.75;
-                    let dataUrl = canvas.toDataURL('image/jpeg', quality);
-                    let tries = 0;
-                    while (dataUrl.length > 700000 && quality > 0.3 && tries < 6) {
-                        quality -= 0.1;
-                        dataUrl = canvas.toDataURL('image/jpeg', quality);
-                        tries++;
-                    }
-
-                    let newName = (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg';
-                    if (statusEl) statusEl.innerHTML = '✅ फोटो तयार भयो: <b>' + newName + '</b> (' + Math.round(dataUrl.length / 1024) + ' KB)';
-                    onReady(dataUrl, newName);
-                };
-                img.onerror = function () {
-                    if (statusEl) statusEl.innerHTML = '❌ फोटो प्रोसेस गर्न सकिएन। फेरि प्रयास गर्नुहोस्।';
-                    alert('फोटो पढ्न सकिएन। कृपया फेरि प्रयास गर्नुहोस्।');
-                };
-                img.src = e.target.result;
+            let reader = new FileReader();
+            reader.onload = function (e) {
+                if (statusEl) statusEl.innerHTML = '✅ फाइल तयार भयो: <b>' + (file.name || 'document') + '</b>';
+                onReady(e.target.result, file.name || 'document');
             };
-            imgReader.onerror = function () {
+            reader.onerror = function () {
                 if (statusEl) statusEl.innerHTML = '❌ फाइल पढ्न सकिएन। फेरि प्रयास गर्नुहोस्।';
                 alert('फाइल पढ्न सकिएन। कृपया फेरि प्रयास गर्नुहोस्।');
             };
-            imgReader.readAsDataURL(file);
+            reader.readAsDataURL(file);
         }
 
         document.getElementById('sigImageUpload').addEventListener('change', function(event) {
@@ -1450,7 +1399,7 @@
             if (file) {
                 readFileForUpload(file, null, function(dataUrl, name) {
                     tempAttachmentUrl = dataUrl;
-                    tempAttachmentName = name || 'camera_capture.jpg';
+                    tempAttachmentName = name || 'document.pdf';
                 });
             }
         });
@@ -1461,7 +1410,7 @@
                 let statusEl = document.getElementById('currentAttachmentInfo');
                 readFileForUpload(file, statusEl, function(dataUrl, name) {
                     tempAttachmentUrl = dataUrl;
-                    tempAttachmentName = name || 'camera_capture.jpg';
+                    tempAttachmentName = name || 'document.pdf';
                 });
             }
         });
@@ -1501,16 +1450,31 @@
             }
         }
 
+        // बहु-पाना PDF तथा ठूला फाइलहरू कम्प्युटर र मोबाइलमा बिना ह्याङ्ग स्मूथली खोल्ने आधुनिक तरिका
         function openPDF(docName, id) {
             let item = lettersData.find(d => d.id === id);
             if (item && item.attachment && item.attachment.url) {
                 let win = window.open();
-                win.document.write(`<iframe src="${item.attachment.url}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`);
-                win.document.title = item.attachment.name || docName;
-            } else if (item && item.attachment && item.attachment.localOnly) {
-                alert(docName + ' को फाइल ठूलो साइजको भएकाले गुगल सिटमा पठाइएको छैन - यो फाइल जुन यन्त्र/ब्राउजरबाट अपलोड गरिएको थियो, त्यहीँबाट मात्र हेर्न मिल्छ। यस यन्त्रमा फेरि हेर्न चाहनुहुन्छ भने त्यहाँबाट पुनः एटेच गर्नुहोस्।');
+                if (win) {
+                    win.document.write(`
+                        <!DOCTYPE html>
+                        <html>
+                        <head><title>${item.attachment.name || docName}</title></head>
+                        <body style="margin:0;background:#333;display:flex;flex-direction:column;height:100vh;">
+                            <div style="background:#222;color:#fff;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;">
+                                <span>📄 ${item.attachment.name || docName}</span>
+                                <a href="${item.attachment.url}" download="${item.attachment.name || 'document'}" style="background:#0284c7;color:#fff;padding:6px 12px;text-decoration:none;border-radius:4px;font-size:13px;">📥 डाउनलोड गर्ने</a>
+                            </div>
+                            <iframe src="${item.attachment.url}" style="border:0;width:100%;flex-grow:1;" allowfullscreen></iframe>
+                        </body>
+                        </html>
+                    `);
+                    win.document.close();
+                } else {
+                    alert('कृपया पप-अप ब्लोकर (Pop-up Blocker) बन्द गर्नुहोस्, जसले गर्दा फाइल नयाँ ट्याबमा खुल्न सकोस्।');
+                }
             } else {
-                alert(docName + ' को स्क्यान गरिएको वास्तविक फाइल उपलब्ध छैन। कृपया नयाँ एटेचमेन्ट अपलोड गर्नुहोस्।');
+                alert(docName + ' को कागजात वा फाइल उपलब्ध छैन। कृपया नयाँ एटेचमेन्ट अपलोड गर्नुहोस्।');
             }
         }
 
@@ -1616,7 +1580,7 @@
             return GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL.indexOf("script.google.com") !== -1;
         }
 
-        const SHEET_FIELD_LIMIT = 45000;
+        const SHEET_FIELD_LIMIT = 450000;
 
         function buildSyncPayload() {
             const source = (typeof lettersData !== "undefined" ? lettersData : []);
@@ -1704,7 +1668,7 @@
                     if (s && s.parentNode) s.parentNode.removeChild(s);
                 }
             };
-            const s = document.createElement("script");
+            const s = document.createElement("cloud");
             s.src = GOOGLE_SCRIPT_URL + "?callback=" + cb + "&t=" + Date.now();
             s.onerror = function () { console.warn("[Sheet Sync] Sheet बाट लोड गर्न सकिएन"); };
             document.body.appendChild(s);
