@@ -1368,28 +1368,12 @@
             }
         }
 
+        // यहाँ सुधार गरिएको छ: ड्राइभको फाइल सीधै नयाँ ट्याबमा खुल्नेछ (refused to connect समस्या हट्छ)
         function openPDF(docName, id) {
             let item = lettersData.find(d => d.id === id);
             if (item && item.attachment && item.attachment.url) {
-                let win = window.open();
-                if (!win) {
-                    alert('कृपया पप-अप ब्लोकर (Pop-up Blocker) बन्द गर्नुहोस्।');
-                    return;
-                }
-                win.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head><title>${item.attachment.name || docName}</title></head>
-                    <body style="margin:0;background:#333;display:flex;flex-direction:column;height:100vh;">
-                        <div style="background:#222;color:#fff;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;">
-                            <span>📄 ${item.attachment.name || docName}</span>
-                            <a href="${item.attachment.url}" download="${item.attachment.name || 'document'}" style="background:#0284c7;color:#fff;padding:6px 12px;text-decoration:none;border-radius:4px;font-size:13px;">📥 डाउनलोड गर्ने</a>
-                        </div>
-                        <iframe src="${item.attachment.url}" style="border:0;width:100%;flex-grow:1;" allowfullscreen></iframe>
-                    </body>
-                    </html>
-                `);
-                win.document.close();
+                let fileUrl = item.attachment.url;
+                window.open(fileUrl, '_blank');
             } else {
                 alert(docName + ' को कागजात वा फाइल उपलब्ध छैन। कृपया नयाँ एटेचमेन्ट अपलोड गर्नुहोस्।');
             }
