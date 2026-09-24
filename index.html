@@ -973,7 +973,7 @@
         </div>
     </div>
 
-    <!-- नयाँ पत्र थप्ने मोडल -->
+    <!-- नयाँ पत्र थप्ने मोडल (मिति फिल्ড थप गरिएको) -->
     <div id="addLetterModal" class="modal">
         <div class="modal-content">
             <h3>नयाँ पत्र दर्ता / चलानी थप्ने फारम</h3>
@@ -986,6 +986,10 @@
 
             <label>हाम्रो दर्ता नं. वा चलानी नं.:</label>
             <input type="text" id="regDispatchNo" placeholder="जस्तै: १०६">
+
+            <!-- यहाँ हाम्रो दर्ता नं. वा चलानी नं. को मिति थप गरिएको छ -->
+            <label>हाम्रो दर्ता नं. वा चलानी नं. मिति:</label>
+            <input type="text" id="regDispatchDate" placeholder="जस्तै: २०८३-०६-०६">
 
             <label>पठाउने कार्यालय वा शाखाको नाम:</label>
             <input type="text" id="senderOffice" placeholder="कार्यालय वा व्यक्तिको नाम लेख्नुहोस्">
@@ -1040,6 +1044,7 @@
                 branch: 'letter',
                 type: 'darta',
                 regNo: 'दर्ता नं. १०५',
+                regDate: '२०८३-०६-०६',
                 sender: 'सशस्त्र प्रहरी बल, नेपाल प्रधान कार्यालय',
                 senderDispNo: 'च.नं. २४५ (०८३/०८४)',
                 subject: 'वार्षिक सुरक्षा नीतिको कार्यान्वयन सम्बन्धमा',
@@ -1054,8 +1059,6 @@
         let tempSelectedSigUrl = '';
         let tempAttachmentUrl = '';
         let tempAttachmentName = '';
-
-        // नोट: window.onload तल Sync Module मा कन्ट्रोल गरिएको छ
 
         function saveToLocalStorage() {
             try {
@@ -1081,6 +1084,7 @@
                     let q = searchQuery.toLowerCase();
                     filtered = filtered.filter(item => 
                         item.regNo.toLowerCase().includes(q) ||
+                        (item.regDate && item.regDate.toLowerCase().includes(q)) ||
                         item.sender.toLowerCase().includes(q) ||
                         item.subject.toLowerCase().includes(q) ||
                         item.senderDispNo.toLowerCase().includes(q)
@@ -1098,6 +1102,7 @@
                     let rowNum = index + 1;
                     let badgeHTML = (item.type === 'darta') ? '<span class="badge-darta">दर्ता (Incoming)</span>' : '<span class="badge-chalani">चलानी (Outgoing)</span>';
                     let branchLabel = getBranchLabelName(item.branch);
+                    let displayRegInfo = `<strong>${item.regNo}</strong>` + (item.regDate ? `<br><small style="color:#64748b;">मिति: ${item.regDate}</small>` : '');
                     
                     let signCellHTML = item.signature ? 
                         `<span class="status-signed">✔️ प्रमाणित (Signed)</span> <button class="btn-action btn-delete" onclick="deleteLetter('${item.id}')">मेटाउने</button><button class="btn-action btn-complete" onclick="markCompleted('${item.id}')">✅ सम्पन्न</button>` : 
@@ -1110,7 +1115,7 @@
                         tr.innerHTML = `
                             <td>${rowNum}</td>
                             <td>${badgeHTML}</td>
-                            <td><strong>${item.regNo}</strong></td>
+                            <td>${displayRegInfo}</td>
                             <td>${item.sender}</td>
                             <td><span style="color: #0369a1; font-weight: bold;">${item.senderDispNo}</span></td>
                             <td>${item.subject}</td>
@@ -1125,7 +1130,7 @@
                         tr.innerHTML = `
                             <td>${rowNum}</td>
                             <td>${badgeHTML}</td>
-                            <td><strong>${item.regNo}</strong></td>
+                            <td>${displayRegInfo}</td>
                             <td>${item.sender}</td>
                             <td>${item.senderDispNo}</td>
                             <td>${item.subject}</td>
@@ -1186,6 +1191,7 @@
         function addNewLetter() {
             let type = document.getElementById('typeSelect').value;
             let regNoText = document.getElementById('regDispatchNo').value;
+            let regDateText = document.getElementById('regDispatchDate').value;
             let regNo = (type === 'darta') ? 'दर्ता नं. ' + regNoText : 'चलानी नं. ' + regNoText;
             let sender = document.getElementById('senderOffice').value;
             let senderDispNo = document.getElementById('senderDispatchNo').value || '-';
@@ -1200,6 +1206,7 @@
                     branch: branch,
                     type: type,
                     regNo: regNo,
+                    regDate: regDateText,
                     sender: sender,
                     senderDispNo: senderDispNo,
                     subject: subject,
@@ -1216,6 +1223,7 @@
                 closeModal('addLetterModal');
                 
                 document.getElementById('regDispatchNo').value = '';
+                document.getElementById('regDispatchDate').value = '';
                 document.getElementById('senderOffice').value = '';
                 document.getElementById('senderDispatchNo').value = '';
                 document.getElementById('letterSubject').value = '';
@@ -1463,7 +1471,7 @@
         }
     </script>
 
-    <!-- GOOGLE SHEET SYNC MODULE (सुधार गरिएको) -->
+    <!-- GOOGLE SHEET SYNC MODULE -->
     <script>
     (function () {
         "use strict";
@@ -1579,13 +1587,11 @@
             return r;
         };
 
-        // पेज खुल्नेबित्तिकै पक्का रूपमा Google Sheet बाट डेटा ल्याएर मात्र टेबल देखाउने
         window.onload = function () {
             pullFromSheet(true, function() {
                 if (typeof renderAllTables === "function") renderAllTables();
                 if (typeof updateDashboardCounts === "function") updateDashboardCounts();
             });
-            // हरेक ३० सेकेन्डमा स्वतः अपडेट भइरहने
             setInterval(function () { pullFromSheet(false); }, 30000);
         };
     })();
