@@ -1054,7 +1054,6 @@
         let tempSelectedSigUrl = '';
         let tempAttachmentUrl = '';
         let tempAttachmentName = '';
-        let tempAttachmentIsRaw = false;
 
         window.onload = function() {
             renderAllTables();
@@ -1065,7 +1064,7 @@
             try {
                 localStorage.setItem('apf_letters_data', JSON.stringify(lettersData));
             } catch (e) {
-                console.warn('[Storage] यन्त्रमा सुरक्षित गर्न सकिएन:', e);
+                console.warn('[Storage] सुरक्षित गर्न सकिएन:', e);
             }
             renderAllTables();
             updateDashboardCounts();
@@ -1172,7 +1171,22 @@
             }
         }
 
-        async function addNewLetter() {
+        function readFileAsDataURL(file, statusEl, callback) {
+            if (!file) return;
+            if (statusEl) statusEl.innerHTML = '⏳ फाइल प्रोसेस हुँदैछ, कृपया पर्खनुहोस्...';
+            let reader = new FileReader();
+            reader.onload = function(e) {
+                if (statusEl) statusEl.innerHTML = '✅ फाइल तयार भयो: <b>' + (file.name || 'document') + '</b>';
+                callback(e.target.result, file.name || 'document');
+            };
+            reader.onerror = function() {
+                if (statusEl) statusEl.innerHTML = '❌ फाइल पढ्न सकिएन।';
+                alert('फाइल पढ्न सकिएन।');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function addNewLetter() {
             let type = document.getElementById('typeSelect').value;
             let regNoText = document.getElementById('regDispatchNo').value;
             let regNo = (type === 'darta') ? 'दर्ता नं. ' + regNoText : 'चलानी नं. ' + regNoText;
@@ -1182,9 +1196,7 @@
             let branch = document.getElementById('branchSelect').value;
 
             if (regNoText && sender && subject) {
-                let attachmentRecord = tempAttachmentUrl
-                    ? await buildAttachmentRecord(tempAttachmentUrl, tempAttachmentName, tempAttachmentIsRaw, null)
-                    : null;
+                let attachmentRecord = tempAttachmentUrl ? { url: tempAttachmentUrl, name: tempAttachmentName } : null;
 
                 let newItem = {
                     id: 'row-custom-' + Date.now(),
@@ -1213,7 +1225,6 @@
                 document.getElementById('newLetterAttachment').value = '';
                 tempAttachmentUrl = '';
                 tempAttachmentName = '';
-                tempAttachmentIsRaw = false;
             } else {
                 alert('कृपया पत्र नम्बर, कार्यालय र विषय अनिवार्य भर्नुहोस्!');
             }
@@ -1277,134 +1288,25 @@
             }
         }
 
-        async function saveAttachment() {
+        function saveAttachment() {
             let rowId = document.getElementById('activeAttachmentRowId').value;
             if (tempAttachmentUrl) {
                 let item = lettersData.find(d => d.id === rowId);
                 if (item) {
-                    item.attachment = await buildAttachmentRecord(tempAttachmentUrl, tempAttachmentName, tempAttachmentIsRaw, item.attachment);
+                    item.attachment = { url: tempAttachmentUrl, name: tempAttachmentName };
                     saveToLocalStorage();
                     alert('फाइल सफलतापूर्वक एटेच र सेभ भयो!');
                 }
                 closeModal('attachmentModal');
-                tempAttachmentIsRaw = false;
             } else {
                 alert('कृपया एटेच गर्नका लागि कुनै फाइल छान्नुहोस्!');
             }
         }
 
-        const RAW_STORE_THRESHOLD = 300 * 1024;
-        const IDB_NAME = 'apf_attachments_db';
-        const IDB_STORE = 'files';
-        let _idbPromise = null;
-
-        function openAttachmentDB() {
-            if (_idbPromise) return _idbPromise;
-            _idbPromise = new Promise(function (resolve, reject) {
-                if (!window.indexedDB) { reject(new Error('IndexedDB उपलब्ध छैन')); return; }
-                let req = indexedDB.open(IDB_NAME, 1);
-                req.onupgradeneeded = function (e) {
-                    let db = e.target.result;
-                    if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
-                };
-                req.onsuccess = function (e) { resolve(e.target.result); };
-                req.onerror = function () { reject(req.error); };
-            });
-            return _idbPromise;
-        }
-
-        function idbPutFile(fileId, blob) {
-            return openAttachmentDB().then(function (db) {
-                return new Promise(function (resolve, reject) {
-                    let tx = db.transaction(IDB_STORE, 'readwrite');
-                    tx.objectStore(IDB_STORE).put(blob, fileId);
-                    tx.oncomplete = function () { resolve(); };
-                    tx.onerror = function () { reject(tx.error); };
-                });
-            });
-        }
-
-        function idbGetFile(fileId) {
-            return openAttachmentDB().then(function (db) {
-                return new Promise(function (resolve, reject) {
-                    let tx = db.transaction(IDB_STORE, 'readonly');
-                    let req = tx.objectStore(IDB_STORE).get(fileId);
-                    req.onsuccess = function () { resolve(req.result); };
-                    req.onerror = function () { reject(req.error); };
-                });
-            });
-        }
-
-        function idbDeleteFile(fileId) {
-            return openAttachmentDB().then(function (db) {
-                return new Promise(function (resolve, reject) {
-                    let tx = db.transaction(IDB_STORE, 'readwrite');
-                    tx.objectStore(IDB_STORE).delete(fileId);
-                    tx.oncomplete = function () { resolve(); };
-                    tx.onerror = function () { reject(tx.error); };
-                });
-            });
-        }
-
-        function genFileId() {
-            return 'f_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
-        }
-
-        function formatFileSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-        }
-
-        function resolveAttachmentUrl(url) {
-            if (url && url.indexOf('idb:') === 0) {
-                let fileId = url.slice(4);
-                return idbGetFile(fileId).then(function (blob) {
-                    if (!blob) throw new Error('फाइल स्थानीय भण्डारमा फेला परेन');
-                    return URL.createObjectURL(blob);
-                });
-            }
-            return Promise.resolve(url);
-        }
-
-        function readFileForUpload(file, statusEl, onReady) {
-            if (!file) return;
-
-            if (file.size > RAW_STORE_THRESHOLD) {
-                if (statusEl) statusEl.innerHTML = '✅ फाइल तयार भयो: <b>' + (file.name || 'document') + '</b> (' + formatFileSize(file.size) + ')';
-                onReady(file, file.name || 'document', true);
-                return;
-            }
-
-            if (statusEl) statusEl.innerHTML = '⏳ फाइल लोड हुँदैछ, कृपया पर्खनुहोस्...';
-            let reader = new FileReader();
-            reader.onload = function (e) {
-                if (statusEl) statusEl.innerHTML = '✅ फाइल तयार भयो: <b>' + (file.name || 'document') + '</b>';
-                onReady(e.target.result, file.name || 'document', false);
-            };
-            reader.onerror = function () {
-                if (statusEl) statusEl.innerHTML = '❌ फाइल पढ्न सकिएन। फेरि प्रयास गर्नुहोस्।';
-                alert('फाइल पढ्न सकिएन। कृपया फेरि प्रयास गर्नुहोस्।');
-            };
-            reader.readAsDataURL(file);
-        }
-
-        async function buildAttachmentRecord(dataOrFile, name, isRawFile, oldAttachment) {
-            if (oldAttachment && oldAttachment.url && oldAttachment.url.indexOf('idb:') === 0) {
-                idbDeleteFile(oldAttachment.url.slice(4)).catch(function () {});
-            }
-            if (isRawFile) {
-                let fileId = genFileId();
-                await idbPutFile(fileId, dataOrFile);
-                return { url: 'idb:' + fileId, name: name, size: dataOrFile.size, localOnly: true };
-            }
-            return { url: dataOrFile, name: name };
-        }
-
         document.getElementById('sigImageUpload').addEventListener('change', function(event) {
             let file = event.target.files[0];
             if (file) {
-                readFileForUpload(file, null, function(dataUrl, name) {
+                readFileAsDataURL(file, null, function(dataUrl) {
                     tempSelectedSigUrl = dataUrl;
                 });
             }
@@ -1413,10 +1315,9 @@
         document.getElementById('newLetterAttachment').addEventListener('change', function(event) {
             let file = event.target.files[0];
             if (file) {
-                readFileForUpload(file, null, function(result, name, isRawFile) {
-                    tempAttachmentUrl = result;
-                    tempAttachmentName = name || 'document.pdf';
-                    tempAttachmentIsRaw = isRawFile;
+                readFileAsDataURL(file, null, function(dataUrl, name) {
+                    tempAttachmentUrl = dataUrl;
+                    tempAttachmentName = name;
                 });
             }
         });
@@ -1425,10 +1326,9 @@
             let file = event.target.files[0];
             if (file) {
                 let statusEl = document.getElementById('currentAttachmentInfo');
-                readFileForUpload(file, statusEl, function(result, name, isRawFile) {
-                    tempAttachmentUrl = result;
-                    tempAttachmentName = name || 'document.pdf';
-                    tempAttachmentIsRaw = isRawFile;
+                readFileAsDataURL(file, statusEl, function(dataUrl, name) {
+                    tempAttachmentUrl = dataUrl;
+                    tempAttachmentName = name;
                 });
             }
         });
@@ -1468,7 +1368,7 @@
             }
         }
 
-        async function openPDF(docName, id) {
+        function openPDF(docName, id) {
             let item = lettersData.find(d => d.id === id);
             if (item && item.attachment && item.attachment.url) {
                 let win = window.open();
@@ -1480,32 +1380,12 @@
                     <!DOCTYPE html>
                     <html>
                     <head><title>${item.attachment.name || docName}</title></head>
-                    <body style="margin:0;background:#333;display:flex;flex-direction:column;height:100vh;font-family:sans-serif;">
-                        <div style="color:#fff;padding:30px;text-align:center;">⏳ फाइल लोड हुँदैछ, कृपया पर्खनुहोस्...</div>
-                    </body>
-                    </html>
-                `);
-                win.document.close();
-
-                let resolvedUrl;
-                try {
-                    resolvedUrl = await resolveAttachmentUrl(item.attachment.url);
-                } catch (e) {
-                    win.document.body.innerHTML = '<div style="color:#fff;padding:30px;text-align:center;">❌ फाइल लोड गर्न सकिएन। यो फाइल यही यन्त्र/ब्राउजरमा मात्र सुरक्षित गरिएको हुन सक्छ।</div>';
-                    return;
-                }
-
-                win.document.open();
-                win.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head><title>${item.attachment.name || docName}</title></head>
                     <body style="margin:0;background:#333;display:flex;flex-direction:column;height:100vh;">
                         <div style="background:#222;color:#fff;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;font-family:sans-serif;">
                             <span>📄 ${item.attachment.name || docName}</span>
-                            <a href="${resolvedUrl}" download="${item.attachment.name || 'document'}" style="background:#0284c7;color:#fff;padding:6px 12px;text-decoration:none;border-radius:4px;font-size:13px;">📥 डाउनलोड गर्ने</a>
+                            <a href="${item.attachment.url}" download="${item.attachment.name || 'document'}" style="background:#0284c7;color:#fff;padding:6px 12px;text-decoration:none;border-radius:4px;font-size:13px;">📥 डाउनलोड गर्ने</a>
                         </div>
-                        <iframe src="${resolvedUrl}" style="border:0;width:100%;flex-grow:1;" allowfullscreen></iframe>
+                        <iframe src="${item.attachment.url}" style="border:0;width:100%;flex-grow:1;" allowfullscreen></iframe>
                     </body>
                     </html>
                 `);
@@ -1603,7 +1483,7 @@
         }
     </script>
 
-    <!-- GOOGLE SHEET SYNC MODULE (गूगल सिट र ड्राइभमा पूर्ण सिङ्क हुने परिमार्जित कोड) -->
+    <!-- GOOGLE SHEET SYNC MODULE -->
     <script>
     (function () {
         "use strict";
@@ -1620,12 +1500,7 @@
         function buildSyncPayload() {
             const source = (typeof lettersData !== "undefined" ? lettersData : []);
             return source.map(function (item) {
-                let copy = Object.assign({}, item);
-                // स्थानीय रूपमा ठूला फाइलहरू IndexedDB मा भए पनि Sheet मा एटेचमेन्टको नाम र URL यथावत पठाइन्छ
-                if (copy.attachment && copy.attachment.url && copy.attachment.url.indexOf('idb:') === 0) {
-                    // सिटमा पठाउनका लागि यदि आधार लिंक छैन भने खाली छोडिन्छ वा सुरक्षित राखिन्छ
-                }
-                return copy;
+                return Object.assign({}, item);
             });
         }
 
@@ -1638,7 +1513,7 @@
                     headers: { "Content-Type": "text/plain;charset=utf-8" },
                     body: JSON.stringify({ action: "sync", data: buildSyncPayload() })
                 }).then(function () {
-                    console.log("[Sheet Sync] डेटा Google Sheet र Drive मा पठाइयो");
+                    console.log("[Sheet Sync] डेटा Google Sheet मा पठाइयो");
                 }).catch(function (err) {
                     console.warn("[Sheet Sync] पठाउन सकिएन:", err);
                 });
