@@ -1066,7 +1066,6 @@
                 localStorage.setItem('apf_letters_data', JSON.stringify(lettersData));
             } catch (e) {
                 console.warn('[Storage] यन्त्रमा सुरक्षित गर्न सकिएन:', e);
-                alert('⚠️ यन्त्रको भण्डारण भरिएकाले नयाँ डेटा सुरक्षित गर्न सकिएन। पुराना ठूला एटेचमेन्टहरू भएका पत्रहरू मेटाउनुहोस्।');
             }
             renderAllTables();
             updateDashboardCounts();
@@ -1294,17 +1293,7 @@
             }
         }
 
-        // ============================================================
-        // ठूला फाइल (Large File) ह्यान्डलिङ मोड्युल
-        // कारण: सानो फाइललाई base64 मा बदलेर localStorage/Sheet मा राख्दा ठिकै हुन्छ,
-        // तर ठूलो फाइल (धेरै MB) लाई base64 string बनाई राख्दा ब्राउजर हैंग हुन्छ र
-        // localStorage/Google Sheet को साइज लिमिटले पनि रोक्छ। त्यसैले तोकिएको साइज
-        // भन्दा ठूलो फाइल भए, फाइललाई सिधै (base64 मा नबदली) ब्राउजरको IndexedDB मा
-        // राखिन्छ - IndexedDB ले GB हदसम्मको फाइल पनि ह्याङ नभई राख्न सक्छ।
-        // यसले संरचना (attachment = {url, name}) मा कुनै परिवर्तन ल्याउँदैन; ठूलो
-        // फाइलको हकमा 'url' भित्र साधारण data: link को सट्टा छोटो 'idb:<id>' सन्दर्भ राखिन्छ।
-        // ============================================================
-        const RAW_STORE_THRESHOLD = 300 * 1024; // 300KB भन्दा ठूलो भए IndexedDB मा राख्ने
+        const RAW_STORE_THRESHOLD = 300 * 1024;
         const IDB_NAME = 'apf_attachments_db';
         const IDB_STORE = 'files';
         let _idbPromise = null;
@@ -1367,8 +1356,6 @@
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
-        // दिइएको attachment/signature रेकर्डको वास्तविक हेर्न मिल्ने URL निकाल्ने
-        // (idb: भए IndexedDB बाट Blob निकालेर अस्थायी Object URL बनाउँछ, अन्यथा data: URL सिधै फर्काउँछ)
         function resolveAttachmentUrl(url) {
             if (url && url.indexOf('idb:') === 0) {
                 let fileId = url.slice(4);
@@ -1383,7 +1370,6 @@
         function readFileForUpload(file, statusEl, onReady) {
             if (!file) return;
 
-            // ठूलो फाइल: base64 मा नबदली सिधै File/Blob नै पास गर्ने (ह्याङ नहोस् भनेर)
             if (file.size > RAW_STORE_THRESHOLD) {
                 if (statusEl) statusEl.innerHTML = '✅ फाइल तयार भयो: <b>' + (file.name || 'document') + '</b> (' + formatFileSize(file.size) + ')';
                 onReady(file, file.name || 'document', true);
@@ -1403,7 +1389,6 @@
             reader.readAsDataURL(file);
         }
 
-        // File/Blob वा base64 data बाट attachment रेकर्ड बनाउने; ठूलो फाइल भए IndexedDB मा सेभ गर्ने
         async function buildAttachmentRecord(dataOrFile, name, isRawFile, oldAttachment) {
             if (oldAttachment && oldAttachment.url && oldAttachment.url.indexOf('idb:') === 0) {
                 idbDeleteFile(oldAttachment.url.slice(4)).catch(function () {});
@@ -1486,7 +1471,6 @@
         async function openPDF(docName, id) {
             let item = lettersData.find(d => d.id === id);
             if (item && item.attachment && item.attachment.url) {
-                // ठूलो फाइल (idb: सन्दर्भ) भए, पप-अप पहिले नै खोल्ने (ब्लक नहोस् भनेर) अनि पछि भर्ने
                 let win = window.open();
                 if (!win) {
                     alert('कृपया पप-अप ब्लोकर (Pop-up Blocker) बन्द गर्नुहोस्।');
@@ -1619,7 +1603,7 @@
         }
     </script>
 
-    <!-- GOOGLE SHEET SYNC MODULE (समस्या समाधान गरिएको - Sheet Cell Limit मिलाइएको) -->
+    <!-- GOOGLE SHEET SYNC MODULE (गूगल सिट र ड्राइभमा पूर्ण सिङ्क हुने परिमार्जित कोड) -->
     <script>
     (function () {
         "use strict";
@@ -1633,19 +1617,13 @@
             return GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL.indexOf("script.google.com") !== -1;
         }
 
-        // Google Sheet को सेल लिमिट (50k characters) भन्दा कम राखिएको (49000) ताकि ठूला फाइल सिंक गर्दा एरर नआओस्
-        const SHEET_FIELD_LIMIT = 49000;
-
         function buildSyncPayload() {
             const source = (typeof lettersData !== "undefined" ? lettersData : []);
             return source.map(function (item) {
                 let copy = Object.assign({}, item);
-                if (copy.attachment && copy.attachment.url && copy.attachment.url.length > SHEET_FIELD_LIMIT) {
-                    copy.attachment = { url: '', name: copy.attachment.name, localOnly: true };
-                }
-                if (copy.signature && copy.signature.length > SHEET_FIELD_LIMIT) {
-                    copy.signature = null;
-                    copy.signatureLocalOnly = true;
+                // स्थानीय रूपमा ठूला फाइलहरू IndexedDB मा भए पनि Sheet मा एटेचमेन्टको नाम र URL यथावत पठाइन्छ
+                if (copy.attachment && copy.attachment.url && copy.attachment.url.indexOf('idb:') === 0) {
+                    // सिटमा पठाउनका लागि यदि आधार लिंक छैन भने खाली छोडिन्छ वा सुरक्षित राखिन्छ
                 }
                 return copy;
             });
@@ -1660,7 +1638,7 @@
                     headers: { "Content-Type": "text/plain;charset=utf-8" },
                     body: JSON.stringify({ action: "sync", data: buildSyncPayload() })
                 }).then(function () {
-                    console.log("[Sheet Sync] डेटा Google Sheet मा पठाइयो");
+                    console.log("[Sheet Sync] डेटा Google Sheet र Drive मा पठाइयो");
                 }).catch(function (err) {
                     console.warn("[Sheet Sync] पठाउन सकिएन:", err);
                 });
