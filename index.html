@@ -336,7 +336,7 @@
         .letterpad-page {
             background: white;
             width: 780px;
-            min-height: 1050px; /* fixed height हटाइयो ताकि कन्टेन्टअनुसार पेज स्वतः फैलिन सकोस् */
+            height: 1050px;
             max-width: 95%;
             padding: 30px 40px 20px 40px;
             margin: auto;
@@ -487,22 +487,19 @@
             line-height: 1.6;
         }
 
-        /* MS Word जस्तै अटो-ग्रो हुने र टेक्स्ट लुक्ने समस्या समाधान गरिएको बक्स */
         .editable-content-box {
             color: var(--letter-color);
             border: 1px dashed #cbd5e1;
             background: rgba(241, 245, 249, 0.3);
             outline: none;
             width: 100%;
-            min-height: 220px;
-            height: auto; /* कन्टेन्ट अनुसार स्वतः तल लम्बिन्छ */
+            height: 220px;
             font-family: inherit;
             font-size: inherit;
             line-height: inherit;
             padding: 8px;
-            overflow-y: visible; /* स्क्रोल बारको सट्टा स्वतः फैलने बनाइएको */
+            overflow-y: auto;
             border-radius: 4px;
-            text-align: left;
         }
 
         .editable-content-box:focus {
@@ -511,7 +508,7 @@
         }
 
         .letterpad-footer-sign {
-            margin-top: 25px;
+            margin-top: 15px;
             display: flex;
             justify-content: flex-end;
         }
@@ -540,7 +537,6 @@
         .letterpad-page-footer {
             border-top: 1px solid #cbd5e1;
             padding-top: 8px;
-            margin-top: 20px;
             text-align: center;
             font-size: 12px;
             color: var(--letter-color);
@@ -548,7 +544,7 @@
         }
 
         .letterpad-controls {
-            margin-top: 15px; 
+            margin-top: 10px; 
             display: flex; 
             justify-content: flex-end; 
             gap: 10px; 
@@ -590,7 +586,7 @@
                 box-shadow: none;
                 width: 100%;
                 max-width: 100%;
-                min-height: 297mm;
+                height: 297mm;
                 margin: 0;
                 padding: 10mm 15mm;
                 position: absolute;
@@ -914,10 +910,8 @@
 
                 <div class="letterpad-body-section">
                     <div class="letterpad-body-content">
-                        <!-- MS Word जस्तै थप फिचरहरू (Italic, Alignment, Bullet/Number Lists) समावेश गरिएको टूलबार -->
                         <div class="editor-toolbar">
                             <button type="button" onclick="formatText('bold')" title="Bold"><b>B</b></button>
-                            <button type="button" onclick="formatText('italic')" title="Italic"><i>I</i></button>
                             <button type="button" onclick="formatText('underline')" title="Underline"><u>U</u></button>
                             <select onchange="formatFontSize(this.value)" title="अक्षरको साइज">
                                 <option value="">फन्ट साइज</option>
@@ -926,12 +920,6 @@
                                 <option value="5">ठूलो (Large)</option>
                                 <option value="7">धेरै ठूलो (X-Large)</option>
                             </select>
-                            <button type="button" onclick="formatText('justifyLeft')" title="Left Align">⬅️ बायाँ</button>
-                            <button type="button" onclick="formatText('justifyCenter')" title="Center Align">⏺️ बीचमा</button>
-                            <button type="button" onclick="formatText('justifyRight')" title="Right Align">➡️ दायाँ</button>
-                            <button type="button" onclick="formatText('justifyFull')" title="Justify">📋 जस्तीफाइ</button>
-                            <button type="button" onclick="formatText('insertUnorderedList')" title="Bullet List">• बुलेट लिस्ट</button>
-                            <button type="button" onclick="formatText('insertOrderedList')" title="Numbered List">1. नम्बर लिस्ट</button>
                             <button type="button" onclick="insertTable()" title="टेबल इन्सर्ट गर्ने">📊 <b>टेबल राख्ने</b></button>
                             
                             <div class="color-picker-wrapper" title="सेलेक्ट गरिएको अक्षरको कलर छान्नुहोस्">
@@ -985,7 +973,7 @@
         </div>
     </div>
 
-    <!-- नयाँ पत्र थप्ने मोडल -->
+    <!-- नयाँ पत्र थप्ने मोडल (मिति फिल्ড थप गरिएको) -->
     <div id="addLetterModal" class="modal">
         <div class="modal-content">
             <h3>नयाँ पत्र दर्ता / चलानी थप्ने फारम</h3>
@@ -999,6 +987,7 @@
             <label>हाम्रो दर्ता नं. वा चलानी नं.:</label>
             <input type="text" id="regDispatchNo" placeholder="जस्तै: १०६">
 
+            <!-- यहाँ हाम्रो दर्ता नं. वा चलानी नं. को मिति थप गरिएको छ -->
             <label>हाम्रो दर्ता नं. वा चलानी नं. मिति:</label>
             <input type="text" id="regDispatchDate" placeholder="जस्तै: २०८३-०६-०६">
 
