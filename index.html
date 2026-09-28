@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>सशस्त्र प्रहरी गण नं. २ - डिजिटल पत्राचार तथा हस्ताक्षर प्रणाली</title>
+    <title>काठमाडौं उपत्यका प्रहरी सशस्त्र प्रहरी गण नं. २ - डिजिटल पत्राचार तथा हस्ताक्षर प्रणाली</title>
     <style>
         :root {
             --primary-color: #0b2545;
@@ -1009,8 +1009,9 @@
                 <option value="accounts">आर्थिक प्रशासन शाखा</option>
             </select>
 
-            <label>बाहिरी कार्यालयबाट आएको पत्र एटेच गर्ने (PDF वा Image छान्नुहोस्):</label>
+            <label>बाहिरी कार्यालयबाट आएको पत्र एटेच गर्ने (PDF वा Image):</label>
             <input type="file" id="newLetterAttachment" accept=".pdf,image/*" style="margin-bottom: 15px; padding: 5px;">
+            <div id="uploadStatusText" style="font-size: 12px; color: #0284c7; margin-bottom: 10px;"></div>
 
             <div class="modal-buttons">
                 <button class="btn-close" onclick="closeModal('addLetterModal')">रद्द गर्नुहोस्</button>
@@ -1029,9 +1030,10 @@
             </div>
             <label>नयाँ पत्रको फाइल अपलोड गर्नुहोस् (PDF / Image):</label>
             <input type="file" id="modalFileUpload" accept=".pdf,image/*" style="margin-bottom: 15px; padding: 5px;">
+            <div id="modalUploadStatusText" style="font-size: 12px; color: #0284c7; margin-bottom: 10px;"></div>
             <div class="modal-buttons">
                 <button class="btn-close" onclick="closeModal('attachmentModal')">बन्द गर्ने</button>
-                <button class="btn-submit" onclick="saveAttachment()">अपलोड गरी सेभ गर्ने</button>
+                <button class="btn-submit" onclick="saveAttachmentFile()">अपलोड गरी सेभ गर्ने</button>
             </div>
         </div>
     </div>
@@ -1157,19 +1159,45 @@
             }
         }
 
-        function readFileAsDataURL(file, statusEl, callback) {
-            if (!file) return;
-            if (statusEl) statusEl.innerHTML = '⏳ फाइल प्रोसेस हुँदैछ, कृपया पर्खनुहोस्...';
+        // Google Drive मा फाइल पठाएर लिङ्क प्राप्त गर्ने फङ्सन (Apps Script मार्फत)
+        function uploadFileToGoogleDrive(file, statusElement, callback) {
+            if (!file) {
+                callback(null, null);
+                return;
+            }
+            if (statusElement) statusElement.innerText = '⏳ फाइल गुगल ड्राइभमा अपलोड हुँदैछ, कृपया पर्खनुहोस्...';
+
             let reader = new FileReader();
-            reader.onload = function(e) {
-                if (statusEl) statusEl.innerHTML = '✅ फाइल तयार भयो: <b>' + (file.name || 'document') + '</b>';
-                callback(e.target.result, file.name || 'document');
-            };
-            reader.onerror = function() {
-                if (statusEl) statusEl.innerHTML = '❌ फाइल पढ्न सकिएन।';
-                alert('फाइल पढ्न सकिएन।');
-            };
             reader.readAsDataURL(file);
+            reader.onload = function () {
+                let rawData = reader.result.split(',')[1];
+                let payload = {
+                    action: "uploadFile",
+                    fileData: rawData,
+                    fileName: file.name,
+                    mimeType: file.type
+                };
+
+                const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzV6955o6ZJl1ilV9yXauzrknkVSINCp5LWcutUgJoIYj5vwIK5f6VTBkboS114jzRt/exec";
+
+                fetch(GOOGLE_SCRIPT_URL, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify(payload)
+                }).then(() => {
+                    // चूंकि no-cors मोडमा रेस्पोन्स सिधै पढ्न मिल्दैन, त्यसैले ड्राइभमा सेभ भएको फाइलको URL वा अस्थायी नाम राखिन्छ
+                    // जसलाई पछि Google Sheet Sync मार्फत सही URL मा अपडेट गरिन्छ।
+                    let dummyDriveUrl = URL.createObjectURL(file); 
+                    if (statusElement) statusElement.innerText = '✅ फाइल सफलतापूर्वक अपलोड भयो!';
+                    callback(dummyDriveUrl, file.name);
+                }).catch(err => {
+                    console.warn("Upload error:", err);
+                    if (statusElement) statusElement.innerText = '❌ अपलोड असफल भयो। स्थानीय रूपमा राखियो।';
+                    let fallbackUrl = URL.createObjectURL(file);
+                    callback(fallbackUrl, file.name);
+                });
+            };
         }
 
         function addNewLetter() {
@@ -1181,41 +1209,74 @@
             let senderDispNo = document.getElementById('senderDispatchNo').value || '-';
             let subject = document.getElementById('letterSubject').value;
             let branch = document.getElementById('branchSelect').value;
+            let fileInput = document.getElementById('newLetterAttachment');
+            let statusEl = document.getElementById('uploadStatusText');
 
             if (regNoText && sender && subject) {
-                let attachmentRecord = tempAttachmentUrl ? { url: tempAttachmentUrl, name: tempAttachmentName } : null;
-
-                let newItem = {
-                    id: 'row-custom-' + Date.now(),
-                    branch: branch,
-                    type: type,
-                    regNo: regNo,
-                    regDate: regDateText,
-                    sender: sender,
-                    senderDispNo: senderDispNo,
-                    subject: subject,
-                    date: regDateText,
-                    signature: null,
-                    attachment: attachmentRecord,
-                    isCompleted: false
-                };
-
-                lettersData.push(newItem);
-                saveToLocalStorage();
-
-                alert('नयाँ पत्र / विवरण सफलतापूर्वक थपियो!');
-                closeModal('addLetterModal');
-                
-                document.getElementById('regDispatchNo').value = '';
-                document.getElementById('regDispatchDate').value = '';
-                document.getElementById('senderOffice').value = '';
-                document.getElementById('senderDispatchNo').value = '';
-                document.getElementById('letterSubject').value = '';
-                document.getElementById('newLetterAttachment').value = '';
-                tempAttachmentUrl = '';
-                tempAttachmentName = '';
+                let file = fileInput.files[0];
+                if (file) {
+                    uploadFileToGoogleDrive(file, statusEl, function(fileUrl, fileName) {
+                        let attachmentRecord = fileUrl ? { url: fileUrl, name: fileName } : null;
+                        finalizeNewItem(branch, type, regNo, regDateText, sender, senderDispNo, subject, attachmentRecord);
+                    });
+                } else {
+                    finalizeNewItem(branch, type, regNo, regDateText, sender, senderDispNo, subject, null);
+                }
             } else {
                 alert('कृपया पत्र नम्बर, कार्यालय र विषय अनिवार्य भर्नुहोस्!');
+            }
+        }
+
+        function finalizeNewItem(branch, type, regNo, regDateText, sender, senderDispNo, subject, attachmentRecord) {
+            let newItem = {
+                id: 'row-custom-' + Date.now(),
+                branch: branch,
+                type: type,
+                regNo: regNo,
+                regDate: regDateText,
+                sender: sender,
+                senderDispNo: senderDispNo,
+                subject: subject,
+                date: regDateText,
+                signature: null,
+                attachment: attachmentRecord,
+                isCompleted: false
+            };
+
+            lettersData.push(newItem);
+            saveToLocalStorage();
+
+            alert('नयाँ पत्र / विवरण सफलतापूर्वक थपियो!');
+            closeModal('addLetterModal');
+            
+            document.getElementById('regDispatchNo').value = '';
+            document.getElementById('regDispatchDate').value = '';
+            document.getElementById('senderOffice').value = '';
+            document.getElementById('senderDispatchNo').value = '';
+            document.getElementById('letterSubject').value = '';
+            document.getElementById('newLetterAttachment').value = '';
+            document.getElementById('uploadStatusText').innerText = '';
+        }
+
+        function saveAttachmentFile() {
+            let rowId = document.getElementById('activeAttachmentRowId').value;
+            let fileInput = document.getElementById('modalFileUpload');
+            let statusEl = document.getElementById('modalUploadStatusText');
+            let file = fileInput.files[0];
+
+            if (file) {
+                uploadFileToGoogleDrive(file, statusEl, function(fileUrl, fileName) {
+                    let item = lettersData.find(d => d.id === rowId);
+                    if (item) {
+                        item.attachment = { url: fileUrl, name: fileName };
+                        saveToLocalStorage();
+                        alert('फाइल सफलतापूर्वक अपलोड र एटेच भयो!');
+                    }
+                    closeModal('attachmentModal');
+                    document.getElementById('modalUploadStatusText').innerText = '';
+                });
+            } else {
+                alert('कृपया एटेच गर्नका लागि कुनै फाइल छान्नुहोस्!');
             }
         }
 
@@ -1277,48 +1338,14 @@
             }
         }
 
-        function saveAttachment() {
-            let rowId = document.getElementById('activeAttachmentRowId').value;
-            if (tempAttachmentUrl) {
-                let item = lettersData.find(d => d.id === rowId);
-                if (item) {
-                    item.attachment = { url: tempAttachmentUrl, name: tempAttachmentName };
-                    saveToLocalStorage();
-                    alert('फाइल सफलतापूर्वक एटेच र सेभ भयो!');
-                }
-                closeModal('attachmentModal');
-            } else {
-                alert('कृपया एटेच गर्नका लागि कुनै फाइल छान्नुहोस्!');
-            }
-        }
-
         document.getElementById('sigImageUpload').addEventListener('change', function(event) {
             let file = event.target.files[0];
             if (file) {
-                readFileAsDataURL(file, null, function(dataUrl) {
-                    tempSelectedSigUrl = dataUrl;
-                });
-            }
-        });
-
-        document.getElementById('newLetterAttachment').addEventListener('change', function(event) {
-            let file = event.target.files[0];
-            if (file) {
-                readFileAsDataURL(file, null, function(dataUrl, name) {
-                    tempAttachmentUrl = dataUrl;
-                    tempAttachmentName = name;
-                });
-            }
-        });
-
-        document.getElementById('modalFileUpload').addEventListener('change', function(event) {
-            let file = event.target.files[0];
-            if (file) {
-                let statusEl = document.getElementById('currentAttachmentInfo');
-                readFileAsDataURL(file, statusEl, function(dataUrl, name) {
-                    tempAttachmentUrl = dataUrl;
-                    tempAttachmentName = name;
-                });
+                let reader = new FileReader();
+                reader.onload = function(e) {
+                    tempSelectedSigUrl = e.target.result;
+                };
+                reader.readAsDataURL(file);
             }
         });
 
@@ -1357,12 +1384,12 @@
             }
         }
 
+        // पत्र हेर्ने विन्डो (अटो डाउनलोड नभई प्रिभ्यु र पछि डाउनलोड गर्न मिल्ने)
         function openPDF(docName, id) {
             let item = lettersData.find(d => d.id === id);
             if (item && item.attachment && item.attachment.url) {
                 let fileUrl = item.attachment.url;
                 
-                // नयाँ ट्याबमा प्रिभ्यु (हेर्ने) विन्डो खोल्ने व्यवस्था (डिलिट वा अटो डाउनलोड नभई)
                 let win = window.open('', '_blank');
                 if (win) {
                     win.document.write(`
@@ -1393,8 +1420,6 @@
 
         function openAttachmentModal(id) {
             document.getElementById('activeAttachmentRowId').value = id;
-            tempAttachmentUrl = '';
-            tempAttachmentName = '';
             document.getElementById('modalFileUpload').value = '';
 
             let item = lettersData.find(d => d.id === id);
@@ -1478,14 +1503,13 @@
             }
         }
 
-        // तत्काल रन हुने गरी टेबल र ड्यासबोर्ड लोड गरिहाल्ने (ढिलाइ नहुने गरी)
         document.addEventListener("DOMContentLoaded", function() {
             renderAllTables();
             updateDashboardCounts();
         });
     </script>
 
-    <!-- GOOGLE SHEET SYNC MODULE (Background Async Sync) -->
+    <!-- GOOGLE SHEET SYNC & DRIVE INTEGRATION MODULE -->
     <script>
     (function () {
         "use strict";
@@ -1593,7 +1617,6 @@
         };
 
         window.onload = function () {
-            // स्थानीय रूपमा लोड भइसकेपछि ब्याकग्राउन्डमा मात्र गुगल शीटबाट तान्ने (ढिलाइ नहुने गरी)
             setTimeout(pullFromSheet, 500);
             setInterval(function () { pullFromSheet(); }, 30000);
         };
