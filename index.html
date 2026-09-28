@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>काठमाडौं उपत्यका प्रहरी सशस्त्र प्रहरी गण नं. २ - डिजिटल पत्राचार तथा हस्ताक्षर प्रणाली</title>
+    <title>सशस्त्र प्रहरी गण नं. २ - डिजिटल पत्राचार तथा हस्ताक्षर प्रणाली</title>
     <style>
         :root {
             --primary-color: #0b2545;
@@ -1039,7 +1039,37 @@
     </div>
 
     <script>
+        const SHEET_URL = "https://script.google.com/macros/s/AKfycbzV6955o6ZJl1ilV9yXauzrknkVSINCp5LWcutUgJoIYj5vwIK5f6VTBkboS114jzRt/exec";
+        let uploading = false;
         let lettersData = JSON.parse(localStorage.getItem('apf_letters_data')) || [];
+
+        // "Tue Jun 01 2083 00:00:00 GMT+0545" जस्तो मिति सफा मितिमा बदल्ने
+        function fixDate(v) {
+            if (typeof v !== 'string') return v;
+            let m = v.match(/^\w{3} (\w{3}) (\d{1,2}) (\d{4})/);
+            if (!m) return v;
+            let mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(m[1]) + 1;
+            return (m[3] + '-' + ('0' + mo).slice(-2) + '-' + ('0' + m[2]).slice(-2)).replace(/\d/g, d => '०१२३४५६७८९'[d]);
+        }
+        lettersData.forEach(i => { i.regDate = fixDate(i.regDate); i.date = fixDate(i.date); });
+
+        // फोटो सानो बनाउने (मोबाइल क्यामेराको ठूलो फोटोले अपलोड अड्कन नदिन)
+        function shrinkImage(file, cb) {
+            if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { cb(file); return; }
+            let img = new Image(), u = URL.createObjectURL(file);
+            img.onload = function () {
+                let k = Math.min(1, 1600 / Math.max(img.width, img.height));
+                let c = document.createElement('canvas');
+                c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+                c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                c.toBlob(function (b) {
+                    URL.revokeObjectURL(u);
+                    cb(b ? new File([b], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file);
+                }, 'image/jpeg', 0.75);
+            };
+            img.onerror = function () { cb(file); };
+            img.src = u;
+        }
 
         let currentLetterUniqueId = '';
         let tempSelectedSigUrl = '';
@@ -1088,7 +1118,7 @@
                     let rowNum = index + 1;
                     let badgeHTML = (item.type === 'darta') ? '<span class="badge-darta">दर्ता (Incoming)</span>' : '<span class="badge-chalani">चलानी (Outgoing)</span>';
                     let branchLabel = getBranchLabelName(item.branch);
-                    let displayRegInfo = `<strong>${item.regNo}</strong>` + (item.regDate ? `<br><small style="color:#64748b;">मिति: ${item.regDate}</small>` : '');
+                    let displayRegInfo = `<strong>${item.regNo}</strong>` + (item.regDate ? `<br><small style="color:#64748b;">मिति: ${fixDate(item.regDate)}</small>` : '');
                     
                     let signCellHTML = item.signature ? 
                         `<span class="status-signed">✔️ प्रमाणित (Signed)</span> <button class="btn-action btn-delete" onclick="deleteLetter('${item.id}')">मेटाउने</button><button class="btn-action btn-complete" onclick="markCompleted('${item.id}')">✅ सम्पन्न</button>` : 
@@ -1120,7 +1150,7 @@
                             <td>${item.sender}</td>
                             <td>${item.senderDispNo}</td>
                             <td>${item.subject}</td>
-                            ${branch !== 'admin' && branch !== 'hr' && branch !== 'accounts' ? '' : `<td>${item.date || ''}</td>`}
+                            ${branch !== 'admin' && branch !== 'hr' && branch !== 'accounts' ? '' : `<td>${fixDate(item.date) || ''}</td>`}
                             <td>
                                 <button class="btn-action btn-view" onclick="openPDF('${item.subject}', '${item.id}')">📄 हेर्नुहोस्</button>
                                 <button class="btn-action" style="background-color: #f1f5f9; color: #475569; margin-left: 4px;" onclick="openAttachmentModal('${item.id}')">📎 एटेचमेन्ट</button>
@@ -1159,45 +1189,38 @@
             }
         }
 
-        // Google Drive मा फाइल पठाएर लिङ्क प्राप्त गर्ने फङ्सन (Apps Script मार्फत)
+        // Google Drive मा फाइल पठाएर लिङ्क प्राप्त गर्ने फङ्सन
         function uploadFileToGoogleDrive(file, statusElement, callback) {
-            if (!file) {
-                callback(null, null);
-                return;
-            }
-            if (statusElement) statusElement.innerText = '⏳ फाइल गुगल ड्राइभमा अपलोड हुँदैछ, कृपया पर्खनुहोस्...';
-
-            let reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = function () {
-                let rawData = reader.result.split(',')[1];
-                let payload = {
-                    action: "uploadFile",
-                    fileData: rawData,
-                    fileName: file.name,
-                    mimeType: file.type
+            if (!file) { callback(null, null, null); return; }
+            if (uploading) { alert('अघिल्लो फाइल अपलोड हुँदैछ, कृपया पर्खनुहोस्।'); return; }
+            if (file.size > 20 * 1024 * 1024) { alert('फाइल २० MB भन्दा ठूलो छ। सानो फाइल छान्नुहोस्।'); callback(null, null, null); return; }
+            let say = t => { if (statusElement) statusElement.innerText = t; };
+            uploading = true;
+            say('⏳ फाइल गुगल ड्राइभमा अपलोड हुँदैछ, कृपया पर्खनुहोस्...');
+            shrinkImage(file, function (f) {
+                let rd = new FileReader();
+                rd.onload = function () {
+                    let ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 120000);
+                    fetch(SHEET_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({ action: 'uploadFile', fileData: rd.result.split(',')[1], fileName: f.name, mimeType: f.type }),
+                        signal: ctrl.signal
+                    }).then(r => r.json()).then(function (res) {
+                        clearTimeout(t); uploading = false;
+                        if (!res || res.status !== 'ok') throw new Error(res && res.message);
+                        say('✅ फाइल गुगल ड्राइभमा सुरक्षित भयो!');
+                        callback(res.url, f.name, res.fileId);
+                    }).catch(function (err) {
+                        clearTimeout(t); uploading = false;
+                        console.warn('Upload error:', err);
+                        say('❌ अपलोड असफल भयो।');
+                        alert('फाइल अपलोड हुन सकेन। इन्टरनेट जाँच गरी 📎 एटेचमेन्टबाट फेरि प्रयास गर्नुहोस्।');
+                        callback(null, null, null);
+                    });
                 };
-
-                const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzV6955o6ZJl1ilV9yXauzrknkVSINCp5LWcutUgJoIYj5vwIK5f6VTBkboS114jzRt/exec";
-
-                fetch(GOOGLE_SCRIPT_URL, {
-                    method: "POST",
-                    mode: "no-cors",
-                    headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify(payload)
-                }).then(() => {
-                    // चूंकि no-cors मोडमा रेस्पोन्स सिधै पढ्न मिल्दैन, त्यसैले ड्राइभमा सेभ भएको फाइलको URL वा अस्थायी नाम राखिन्छ
-                    // जसलाई पछि Google Sheet Sync मार्फत सही URL मा अपडेट गरिन्छ।
-                    let dummyDriveUrl = URL.createObjectURL(file); 
-                    if (statusElement) statusElement.innerText = '✅ फाइल सफलतापूर्वक अपलोड भयो!';
-                    callback(dummyDriveUrl, file.name);
-                }).catch(err => {
-                    console.warn("Upload error:", err);
-                    if (statusElement) statusElement.innerText = '❌ अपलोड असफल भयो। स्थानीय रूपमा राखियो।';
-                    let fallbackUrl = URL.createObjectURL(file);
-                    callback(fallbackUrl, file.name);
-                });
-            };
+                rd.readAsDataURL(f);
+            });
         }
 
         function addNewLetter() {
@@ -1215,8 +1238,8 @@
             if (regNoText && sender && subject) {
                 let file = fileInput.files[0];
                 if (file) {
-                    uploadFileToGoogleDrive(file, statusEl, function(fileUrl, fileName) {
-                        let attachmentRecord = fileUrl ? { url: fileUrl, name: fileName } : null;
+                    uploadFileToGoogleDrive(file, statusEl, function(fileUrl, fileName, fileId) {
+                        let attachmentRecord = fileUrl ? { url: fileUrl, name: fileName, fileId: fileId } : null;
                         finalizeNewItem(branch, type, regNo, regDateText, sender, senderDispNo, subject, attachmentRecord);
                     });
                 } else {
@@ -1265,10 +1288,10 @@
             let file = fileInput.files[0];
 
             if (file) {
-                uploadFileToGoogleDrive(file, statusEl, function(fileUrl, fileName) {
+                uploadFileToGoogleDrive(file, statusEl, function(fileUrl, fileName, fileId) {
                     let item = lettersData.find(d => d.id === rowId);
-                    if (item) {
-                        item.attachment = { url: fileUrl, name: fileName };
+                    if (item && fileUrl) {
+                        item.attachment = { url: fileUrl, name: fileName, fileId: fileId };
                         saveToLocalStorage();
                         alert('फाइल सफलतापूर्वक अपलोड र एटेच भयो!');
                     }
@@ -1343,7 +1366,20 @@
             if (file) {
                 let reader = new FileReader();
                 reader.onload = function(e) {
-                    tempSelectedSigUrl = e.target.result;
+                    let im = new Image();
+                    im.onload = function () {
+                        let k = Math.min(1, 300 / im.width), c = document.createElement('canvas');
+                        c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+                        c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+                        let out = c.toDataURL('image/png');
+                        if (out.length > 45000) {
+                            let g = c.getContext('2d'); g.globalCompositeOperation = 'destination-over'; g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+                            out = c.toDataURL('image/jpeg', 0.8);
+                        }
+                        tempSelectedSigUrl = out;
+                    };
+                    im.onerror = function () { tempSelectedSigUrl = e.target.result; };
+                    im.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
             }
@@ -1388,7 +1424,10 @@
         function openPDF(docName, id) {
             let item = lettersData.find(d => d.id === id);
             if (item && item.attachment && item.attachment.url) {
-                let fileUrl = item.attachment.url;
+                let att = item.attachment, gid = att.fileId || ((att.url || '').match(/[-\w]{25,}/) || [])[0];
+                let isDrive = /drive\.google\.com|docs\.google\.com/.test(att.url || '') && gid;
+                let viewUrl = isDrive ? 'https://drive.google.com/file/d/' + gid + '/preview' : att.url;
+                let dlUrl = isDrive ? 'https://drive.google.com/uc?export=download&id=' + gid : att.url;
                 
                 let win = window.open('', '_blank');
                 if (win) {
@@ -1399,14 +1438,216 @@
                             <div style="background:#222; color:#fff; width:100%; padding:10px; display:flex; justify-content:space-between; align-items:center; box-sizing:border-box;">
                                 <span style="font-family:sans-serif; font-size:14px; padding-left:15px;">विषय: ${docName}</span>
                                 <div>
-                                    <a href="${fileUrl}" download="${item.attachment.name || 'document'}" style="background:#0284c7; color:white; padding:6px 14px; text-decoration:none; border-radius:4px; font-family:sans-serif; font-size:13px; margin-right:10px;">⬇️ डाउनलोड गर्ने</a>
+                                    <a href="${dlUrl}" download="${item.attachment.name || 'document'}" style="background:#0284c7; color:white; padding:6px 14px; text-decoration:none; border-radius:4px; font-family:sans-serif; font-size:13px; margin-right:10px;">⬇️ डाउनलोड गर्ने</a>
                                     <button onclick="window.close()" style="background:#cbd5e1; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; font-family:sans-serif; font-size:13px;">बन्द गर्ने</button>
                                 </div>
                             </div>
                             <div style="flex-grow:1; width:100%; display:flex; justify-content:center; align-items:center;">
-                                <iframe src="${fileUrl}" style="width:100%; height:100%; border:none;"></iframe>
+                                <iframe src="${viewUrl}" style="width:100%; height:100%; border:none;"></iframe>
                             </div>
                         </body>
+                        </html>
+                    `);
+                    win.document.close();
+                } else {
+                    alert('पपअप (Pop-up) ब्लक गरिएको छ। कृपया पपअप अनुमति दिनुहोस्।');
+                }
+            } else {
+                alert(docName + ' को कागजात वा फाइल उपलब्ध छैन। कृपया नयाँ एटेचमेन्ट अपलोड गर्नुहोस्।');
+            }
+        }
+
+        function openAttachmentModal(id) {
+            document.getElementById('activeAttachmentRowId').value = id;
+            document.getElementById('modalFileUpload').value = '';
+
+            let item = lettersData.find(d => d.id === id);
+            let infoDiv = document.getElementById('currentAttachmentInfo');
+            if (item && item.attachment && item.attachment.name) {
+                infoDiv.innerHTML = `हाल एटेच गरिएको फाइल: <b style="color: #0369a1;">${item.attachment.name}</b>`;
+            } else {
+                infoDiv.innerHTML = 'हाल कुनै कागजात एटेच गरिएको छैन।';
+            }
+            openModal('attachmentModal');
+        }
+
+        function openModal(modalId) { document.getElementById(modalId).style.display = 'flex'; }
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+        
+        function openSignModal(id) {
+            currentLetterUniqueId = id;
+            document.getElementById('activeSigningRowId').value = id;
+            let item = lettersData.find(d => d.id === id);
+            document.getElementById('signerNameInput').value = (item && item.signerName) ? item.signerName : '';
+            document.getElementById('signModal').style.display = 'flex';
+        }
+
+        function openSignModalFromPad() {
+            if (currentLetterUniqueId) openSignModal(currentLetterUniqueId);
+        }
+
+        function openLetterPad(id, subject, office, branchName, senderDispatchNo) {
+            currentLetterUniqueId = id;
+            let item = lettersData.find(d => d.id === id);
+
+            document.getElementById('padSubject').value = (item && item.replySubject) ? item.replySubject : subject;
+            document.getElementById('padReplyText').innerHTML = (item && item.replyText) ? item.replyText : '';
+            document.getElementById('padPraPaSa').value = (item && item.replyPraPaSa) ? item.replyPraPaSa : (senderDispatchNo || '-');
+            if (branchName) document.getElementById('padBranchTitle').innerText = '(' + branchName + ')';
+
+            let sigArea = document.getElementById('padSignatureArea');
+            if (item && item.signature) {
+                let displayName = item.signerName || 'गणपति';
+                sigArea.innerHTML = `<img src="${item.signature}" alt="Signature"><div class="sig-line" contenteditable="true" style="color: var(--success); font-weight: bold;">✔️ प्रमाणित (${displayName})</div>`;
+            } else {
+                sigArea.innerHTML = '<div class="sig-line" contenteditable="true">(हस्ताक्षर बाँकी - क्लिक गरी नाम/पद लेख्नुहोस्)</div>';
+            }
+            document.getElementById('letterPadModal').style.display = 'flex';
+        }
+
+        function closeLetterPad() { document.getElementById('letterPadModal').style.display = 'none'; }
+
+        function saveLetterPad() {
+            let item = lettersData.find(d => d.id === currentLetterUniqueId);
+            if (item) {
+                item.replySubject = document.getElementById('padSubject').value;
+                item.replyText = document.getElementById('padReplyText').innerHTML;
+                item.replyPraPaSa = document.getElementById('padPraPaSa').value;
+                saveToLocalStorage();
+            }
+            alert('लेटर प्याड सुरक्षित भयो!');
+            closeLetterPad();
+        }
+        function triggerPrint() { window.print(); }
+
+        function formatText(cmd) { document.execCommand(cmd, false, null); }
+        function formatFontSize(size) { if(size) document.execCommand('fontSize', false, size); }
+        function changeSelectedTextColor(color) { document.execCommand('foreColor', false, color); }
+        
+        function insertTable() {
+            let rows = prompt("टेबलको कुल पङ्क्ति (Rows):", "3");
+            let cols = prompt("टेबलको कुल स्तम्भ (Columns):", "3");
+            if(rows && cols) {
+                let html = `<table style="width:100%; border-collapse:collapse; margin:10px 0;">`;
+                for(let i=0; i<parseInt(rows); i++) {
+                    html += '<tr>';
+                    for(let j=0; j<parseInt(cols); j++) {
+                        html += (i===0) ? `<th style="border:1px solid #dc2626; padding:6px; background:rgba(0,0,0,0.05);">शीर्षक ${j+1}</th>` : `<td style="border:1px solid #dc2626; padding:6px; text-align:center;">विवरण</td>`;
+                    }
+                    html += '</tr>';
+                }
+                html += '</table>';
+                document.getElementById('padReplyText').focus();
+                document.execCommand('insertHTML', false, html);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            renderAllTables();
+            updateDashboardCounts();
+        });
+    </script>
+
+    <!-- GOOGLE SHEET SYNC MODULE: प्रत्येक पत्र अलग-अलग सिङ्क हुन्छ, सबै मोबाइल/कम्प्युटरमा एउटै डाटा देखिन्छ -->
+    <script>
+    (function () {
+        "use strict";
+        var LS = "apf_letters_data", TK = "apf_tomb", AK = "apf_ack", SK = "apf_since";
+        var J = function (k) { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch (e) { return {}; } };
+        var tomb = J(TK), ack = J(AK), snap = {}, timer = null, busy = false;
+
+        function sig(o) { return JSON.stringify(o, function (k, v) { return k === "updatedAt" ? undefined : v; }); }
+        function persist() {
+            try {
+                localStorage.setItem(LS, JSON.stringify(lettersData));
+                localStorage.setItem(TK, JSON.stringify(tomb));
+                localStorage.setItem(AK, JSON.stringify(ack));
+            } catch (e) { console.warn("[Sync] सुरक्षित गर्न सकिएन", e); }
+        }
+        // कुन पत्र बदलियो / मेटियो भनी पहिचान गर्ने
+        function stamp() {
+            var ids = {};
+            lettersData.forEach(function (i) {
+                ids[i.id] = 1;
+                var s = sig(i);
+                if (snap[i.id] !== s) { i.updatedAt = Date.now(); snap[i.id] = s; delete tomb[i.id]; }
+            });
+            Object.keys(snap).forEach(function (id) {
+                if (!ids[id]) { tomb[id] = Date.now(); delete snap[id]; }
+            });
+        }
+        lettersData.forEach(function (i) { if (!i.updatedAt) i.updatedAt = 1; snap[i.id] = sig(i); });
+
+        function post(body) {
+            return fetch(SHEET_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })
+                .then(function (r) { return r.json(); })
+                .catch(function () {
+                    return fetch(SHEET_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })
+                        .then(function () { return { status: "sent" }; });
+                });
+        }
+        function pull(cb) {
+            var name = "__cb" + Date.now(), s = document.createElement("script"), done = false;
+            function end(res) { if (done) return; done = true; delete window[name]; if (s.parentNode) s.parentNode.removeChild(s); cb(res); }
+            window[name] = end;
+            s.onerror = function () { end(null); };
+            setTimeout(function () { end(null); }, 25000);
+            s.src = SHEET_URL + "?callback=" + name + "&since=" + (+localStorage.getItem(SK) || 0) + "&t=" + Date.now();
+            document.body.appendChild(s);
+        }
+        function pushChunks(list, done) {
+            if (!list.length) return done();
+            var part = list.splice(0, 8);
+            post({ action: "upsert", items: part }).then(function (r) {
+                if (r && r.status === "ok") { part.forEach(function (i) { ack[i.id] = i.updatedAt; }); persist(); pushChunks(list, done); }
+                else done();
+            }).catch(done);
+        }
+
+        function sync() {
+            if (busy) return;
+            busy = true;
+            pull(function (res) {
+                try {
+                    if (!res || res.status !== "ok" || !Array.isArray(res.data)) { busy = false; return; }
+                    stamp();
+                    var map = {}, changed = false;
+                    lettersData.forEach(function (i) { map[i.id] = i; });
+                    res.data.forEach(function (s) {
+                        var l = map[s.id], lt = l ? (l.updatedAt || 0) : (tomb[s.id] || 0), st = s.updatedAt || 0;
+                        if (st > lt) {
+                            changed = true; ack[s.id] = st;
+                            if (s.deleted) { delete map[s.id]; tomb[s.id] = st; delete snap[s.id]; }
+                            else { s.regDate = fixDate(s.regDate); s.date = fixDate(s.date); map[s.id] = s; snap[s.id] = sig(s); delete tomb[s.id]; }
+                        } else if (st === lt) { ack[s.id] = st; }
+                    });
+                    lettersData = Object.keys(map).map(function (k) { return map[k]; });
+                    if (res.now) localStorage.setItem(SK, res.now - 10000);
+                    persist();
+                    if (changed) { renderAllTables(); updateDashboardCounts(); }
+                    var list = [];
+                    lettersData.forEach(function (i) { if ((ack[i.id] || 0) < i.updatedAt) list.push(i); });
+                    Object.keys(tomb).forEach(function (id) { if ((ack[id] || 0) < tomb[id]) list.push({ id: id, deleted: true, updatedAt: tomb[id] }); });
+                    pushChunks(list, function () { busy = false; });
+                } catch (e) { console.warn("[Sync] त्रुटि", e); busy = false; }
+            });
+        }
+
+        var orig = window.saveToLocalStorage;
+        window.saveToLocalStorage = function () {
+            stamp(); persist();
+            var r = orig.apply(this, arguments);
+            clearTimeout(timer);
+            timer = setTimeout(sync, 800);
+            return r;
+        };
+
+        sync();                                   // पेज खुल्नासाथ लोड (पर्खनु पर्दैन)
+        setInterval(sync, 30000);
+        document.addEventListener("visibilitychange", function () { if (!document.hidden) sync(); });
+    })();
+    </script>
+</body>
                         </html>
                     `);
                     win.document.close();
