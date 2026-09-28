@@ -973,7 +973,7 @@
         </div>
     </div>
 
-    <!-- नयाँ पत्र थप्ने मोडल (मिति फिल्ড थप गरिएको) -->
+    <!-- नयाँ पत्र थप्ने मोडल -->
     <div id="addLetterModal" class="modal">
         <div class="modal-content">
             <h3>नयाँ पत्र दर्ता / चलानी थप्ने फारम</h3>
@@ -987,7 +987,6 @@
             <label>हाम्रो दर्ता नं. वा चलानी नं.:</label>
             <input type="text" id="regDispatchNo" placeholder="जस्तै: १०६">
 
-            <!-- यहाँ हाम्रो दर्ता नं. वा चलानी नं. को मिति थप गरिएको छ -->
             <label>हाम्रो दर्ता नं. वा चलानी नं. मिति:</label>
             <input type="text" id="regDispatchDate" placeholder="जस्तै: २०८३-०६-०६">
 
@@ -1038,22 +1037,7 @@
     </div>
 
     <script>
-        let lettersData = JSON.parse(localStorage.getItem('apf_letters_data')) || [
-            {
-                id: 'row-default-1',
-                branch: 'letter',
-                type: 'darta',
-                regNo: 'दर्ता नं. १०५',
-                regDate: '२०८३-०६-०६',
-                sender: 'सशस्त्र प्रहरी बल, नेपाल प्रधान कार्यालय',
-                senderDispNo: 'च.नं. २४५ (०८३/०८४)',
-                subject: 'वार्षिक सुरक्षा नीतिको कार्यान्वयन सम्बन्धमा',
-                date: '२०८३-०६-०६',
-                signature: null,
-                attachment: null,
-                isCompleted: false
-            }
-        ];
+        let lettersData = JSON.parse(localStorage.getItem('apf_letters_data')) || [];
 
         let currentLetterUniqueId = '';
         let tempSelectedSigUrl = '';
@@ -1134,7 +1118,7 @@
                             <td>${item.sender}</td>
                             <td>${item.senderDispNo}</td>
                             <td>${item.subject}</td>
-                            ${branch !== 'admin' && branch !== 'hr' && branch !== 'accounts' ? '' : `<td>${item.date || '२०८३-०६-०६'}</td>`}
+                            ${branch !== 'admin' && branch !== 'hr' && branch !== 'accounts' ? '' : `<td>${item.date || ''}</td>`}
                             <td>
                                 <button class="btn-action btn-view" onclick="openPDF('${item.subject}', '${item.id}')">📄 हेर्नुहोस्</button>
                                 <button class="btn-action" style="background-color: #f1f5f9; color: #475569; margin-left: 4px;" onclick="openAttachmentModal('${item.id}')">📎 एटेचमेन्ट</button>
@@ -1210,7 +1194,7 @@
                     sender: sender,
                     senderDispNo: senderDispNo,
                     subject: subject,
-                    date: '२०८३-०६-०६',
+                    date: regDateText,
                     signature: null,
                     attachment: attachmentRecord,
                     isCompleted: false
@@ -1377,7 +1361,31 @@
             let item = lettersData.find(d => d.id === id);
             if (item && item.attachment && item.attachment.url) {
                 let fileUrl = item.attachment.url;
-                window.open(fileUrl, '_blank');
+                
+                // नयाँ ट्याबमा प्रिभ्यु (हेर्ने) विन्डो खोल्ने व्यवस्था (डिलिट वा अटो डाउनलोड नभई)
+                let win = window.open('', '_blank');
+                if (win) {
+                    win.document.write(`
+                        <html>
+                        <head><title>${docName} - पत्र प्रिभ्यु</title></head>
+                        <body style="margin:0; background:#333; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh;">
+                            <div style="background:#222; color:#fff; width:100%; padding:10px; display:flex; justify-content:space-between; align-items:center; box-sizing:border-box;">
+                                <span style="font-family:sans-serif; font-size:14px; padding-left:15px;">विषय: ${docName}</span>
+                                <div>
+                                    <a href="${fileUrl}" download="${item.attachment.name || 'document'}" style="background:#0284c7; color:white; padding:6px 14px; text-decoration:none; border-radius:4px; font-family:sans-serif; font-size:13px; margin-right:10px;">⬇️ डाउनलोड गर्ने</a>
+                                    <button onclick="window.close()" style="background:#cbd5e1; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; font-family:sans-serif; font-size:13px;">बन्द गर्ने</button>
+                                </div>
+                            </div>
+                            <div style="flex-grow:1; width:100%; display:flex; justify-content:center; align-items:center;">
+                                <iframe src="${fileUrl}" style="width:100%; height:100%; border:none;"></iframe>
+                            </div>
+                        </body>
+                        </html>
+                    `);
+                    win.document.close();
+                } else {
+                    alert('पपअप (Pop-up) ब्लक गरिएको छ। कृपया पपअप अनुमति दिनुहोस्।');
+                }
             } else {
                 alert(docName + ' को कागजात वा फाइल उपलब्ध छैन। कृपया नयाँ एटेचमेन्ट अपलोड गर्नुहोस्।');
             }
@@ -1469,9 +1477,15 @@
                 document.execCommand('insertHTML', false, html);
             }
         }
+
+        // तत्काल रन हुने गरी टेबल र ड्यासबोर्ड लोड गरिहाल्ने (ढिलाइ नहुने गरी)
+        document.addEventListener("DOMContentLoaded", function() {
+            renderAllTables();
+            updateDashboardCounts();
+        });
     </script>
 
-    <!-- GOOGLE SHEET SYNC MODULE -->
+    <!-- GOOGLE SHEET SYNC MODULE (Background Async Sync) -->
     <script>
     (function () {
         "use strict";
@@ -1540,18 +1554,12 @@
             return merged;
         }
 
-        function pullFromSheet(force, callback) {
-            if (!configured()) {
-                if (typeof callback === "function") callback();
-                return;
-            }
+        function pullFromSheet() {
+            if (!configured()) return;
             const cb = "__sheetCb_" + Date.now();
             window[cb] = function (res) {
                 try {
-                    if (!res || res.status !== "ok" || !Array.isArray(res.data)) {
-                        if (typeof callback === "function") callback();
-                        return;
-                    }
+                    if (!res || res.status !== "ok" || !Array.isArray(res.data)) return;
                     isRestoring = true;
                     lettersData = mergeSheetData(res.data);
                     try {
@@ -1561,10 +1569,8 @@
                     }
                     if (typeof renderAllTables === "function") renderAllTables();
                     if (typeof updateDashboardCounts === "function") updateDashboardCounts();
-                    if (typeof callback === "function") callback();
                 } catch (e) {
                     console.warn("[Sheet Sync] मर्ज गर्दा त्रुटि:", e);
-                    if (typeof callback === "function") callback();
                 } finally {
                     isRestoring = false;
                     delete window[cb];
@@ -1575,7 +1581,6 @@
             s.src = GOOGLE_SCRIPT_URL + "?callback=" + cb + "&t=" + Date.now();
             s.onerror = function () { 
                 console.warn("[Sheet Sync] Sheet बाट लोड गर्न सकिएन"); 
-                if (typeof callback === "function") callback();
             };
             document.body.appendChild(s);
         }
@@ -1588,11 +1593,9 @@
         };
 
         window.onload = function () {
-            pullFromSheet(true, function() {
-                if (typeof renderAllTables === "function") renderAllTables();
-                if (typeof updateDashboardCounts === "function") updateDashboardCounts();
-            });
-            setInterval(function () { pullFromSheet(false); }, 30000);
+            // स्थानीय रूपमा लोड भइसकेपछि ब्याकग्राउन्डमा मात्र गुगल शीटबाट तान्ने (ढिलाइ नहुने गरी)
+            setTimeout(pullFromSheet, 500);
+            setInterval(function () { pullFromSheet(); }, 30000);
         };
     })();
     </script>
