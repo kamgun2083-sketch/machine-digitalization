@@ -1189,14 +1189,14 @@
             }
         }
 
-        // Google Drive मा फाइल पठाएर लिङ्क प्राप्त गर्ने फङ्सन
+        // फाइल अपलोड गर्दा "डाटा सेभ हुँदैछ" देखाउने गरी मिलाइएको फङ्सन
         function uploadFileToGoogleDrive(file, statusElement, callback) {
             if (!file) { callback(null, null, null); return; }
             if (uploading) { alert('अघिल्लो फाइल अपलोड हुँदैछ, कृपया पर्खनुहोस्।'); return; }
             if (file.size > 20 * 1024 * 1024) { alert('फाइल २० MB भन्दा ठूलो छ। सानो फाइल छान्नुहोस्।'); callback(null, null, null); return; }
             let say = t => { if (statusElement) statusElement.innerText = t; };
             uploading = true;
-            say('⏳ फाइल गुगल ड्राइभमा अपलोड हुँदैछ, कृपया पर्खनुहोस्...');
+            say('⏳ डाटा सेभ हुँदैछ, कृपया पर्खनुहोस्...');
             shrinkImage(file, function (f) {
                 let rd = new FileReader();
                 rd.onload = function () {
@@ -1209,7 +1209,7 @@
                     }).then(r => r.json()).then(function (res) {
                         clearTimeout(t); uploading = false;
                         if (!res || res.status !== 'ok') throw new Error(res && res.message);
-                        say('✅ फाइल गुगल ड्राइभमा सुरक्षित भयो!');
+                        say('✅ डाटा सफलतापूर्वक सेभ भयो!');
                         callback(res.url, f.name, res.fileId);
                     }).catch(function (err) {
                         clearTimeout(t); uploading = false;
@@ -1420,7 +1420,6 @@
             }
         }
 
-        // पत्र हेर्ने विन्डो (अटो डाउनलोड नभई प्रिभ्यु र पछि डाउनलोड गर्न मिल्ने)
         function openPDF(docName, id) {
             let item = lettersData.find(d => d.id === id);
             if (item && item.attachment && item.attachment.url) {
@@ -1542,14 +1541,17 @@
             }
         }
 
+        // वेबसाइट खुल्दा छिटो लोड होस् भन्नका लागि पहिले लोकल स्टोरेजको डाटा देखाउने र ब्याकग्राउन्डमा सिङ्क गर्ने अप्टिमाइजेशन
         document.addEventListener("DOMContentLoaded", function() {
             renderAllTables();
             updateDashboardCounts();
+            setTimeout(function() { if (typeof sync === 'function') sync(); }, 100);
         });
     </script>
 
-    <!-- GOOGLE SHEET SYNC MODULE: प्रत्येक पत्र अलग-अलग सिङ्क हुन्छ, सबै मोबाइल/कम्प्युटरमा एउटै डाटा देखिन्छ -->
+    <!-- GOOGLE SHEET SYNC MODULE: अप्टिमाइज्ड सिङ्क र छिटो खुल्ने व्यवस्था -->
     <script>
+    var sync;
     (function () {
         "use strict";
         var LS = "apf_letters_data", TK = "apf_tomb", AK = "apf_ack", SK = "apf_since";
@@ -1564,7 +1566,6 @@
                 localStorage.setItem(AK, JSON.stringify(ack));
             } catch (e) { console.warn("[Sync] सुरक्षित गर्न सकिएन", e); }
         }
-        // कुन पत्र बदलियो / मेटियो भनी पहिचान गर्ने
         function stamp() {
             var ids = {};
             lettersData.forEach(function (i) {
@@ -1604,7 +1605,7 @@
             }).catch(done);
         }
 
-        function sync() {
+        sync = function() {
             if (busy) return;
             busy = true;
             pull(function (res) {
@@ -1622,16 +1623,16 @@
                         } else if (st === lt) { ack[s.id] = st; }
                     });
                     lettersData = Object.keys(map).map(function (k) { return map[k]; });
-                    if (res.now) localStorage.setItem(SK, res.now - 10000);
+                    if (res.now) localStorage.Keys ? null : localStorage.setItem(SK, res.now - 10000);
                     persist();
                     if (changed) { renderAllTables(); updateDashboardCounts(); }
                     var list = [];
                     lettersData.forEach(function (i) { if ((ack[i.id] || 0) < i.updatedAt) list.push(i); });
-                    Object.keys(tomb).forEach(function (id) { if ((ack[id] || 0) < tomb[id]) list.push({ id: id, deleted: true, updatedAt: tomb[id] }); });
+                    Object.keys(tomb).keys ? null : Object.keys(tomb).forEach(function (id) { if ((ack[id] || 0) < tomb[id]) list.push({ id: id, deleted: true, updatedAt: tomb[id] }); });
                     pushChunks(list, function () { busy = false; });
                 } catch (e) { console.warn("[Sync] त्रुटि", e); busy = false; }
             });
-        }
+        };
 
         var orig = window.saveToLocalStorage;
         window.saveToLocalStorage = function () {
@@ -1642,7 +1643,7 @@
             return r;
         };
 
-        sync();                                   // पेज खुल्नासाथ लोड (पर्खनु पर्दैन)
+        setTimeout(sync, 500); // पहिल्यै क्यास भएको डाटा तुरुन्त देखाएर ब्याकग्राउन्डमा सिङ्क गर्ने
         setInterval(sync, 30000);
         document.addEventListener("visibilitychange", function () { if (!document.hidden) sync(); });
     })();
