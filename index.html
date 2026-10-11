@@ -761,6 +761,7 @@
                                     <th>कार्यालय / विवरण</th>
                                     <th>तालुकको चलानी नं.</th>
                                     <th>विषय / जनशक्ति विवरण</th>
+                                    <th>मिति</th>
                                     <th>विवरण फाइल / एटेचमेन्ट</th>
                                     <th>टिप्पणी / जवाफ</th>
                                     <th>डिजिटल सही</th>
@@ -851,6 +852,7 @@
                                     <th>कार्यालय / शाखा</th>
                                     <th>तालुकको चलानी नं.</th>
                                     <th>विषय / बजेट शीर्षक</th>
+                                    <th>मिति</th>
                                     <th>लेखा प्रतिवेदन / एटेचमेन्ट</th>
                                     <th>टिप्पणी / जवाफ</th>
                                     <th>डिजिटल सही</th>
@@ -1053,6 +1055,11 @@
         }
         lettersData.forEach(i => { i.regDate = fixDate(i.regDate); i.date = fixDate(i.date); });
 
+        // HTML मा सुरक्षित देखाउन (', ", <, > भएका पाठले पृष्ठ नबिगारोस्)
+        function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+        // onclick='...' भित्रको JS स्ट्रिङका लागि सुरक्षित बनाउने
+        function q(v) { return esc(String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' ')); }
+
         // फोटो सानो बनाउने (मोबाइल क्यामेराको ठूलो फोटोले अपलोड अड्कन नदिन)
         function shrinkImage(file, cb) {
             if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { cb(file); return; }
@@ -1118,11 +1125,11 @@
                     let rowNum = index + 1;
                     let badgeHTML = (item.type === 'darta') ? '<span class="badge-darta">दर्ता (Incoming)</span>' : '<span class="badge-chalani">चलानी (Outgoing)</span>';
                     let branchLabel = getBranchLabelName(item.branch);
-                    let displayRegInfo = `<strong>${item.regNo}</strong>` + (item.regDate ? `<br><small style="color:#64748b;">मिति: ${fixDate(item.regDate)}</small>` : '');
+                    let displayRegInfo = `<strong>${esc(item.regNo)}</strong>` + (item.regDate ? `<br><small style="color:#64748b;">मिति: ${esc(fixDate(item.regDate))}</small>` : '');
                     
                     let signCellHTML = item.signature ? 
-                        `<span class="status-signed">✔️ प्रमाणित (Signed)</span> <button class="btn-action btn-delete" onclick="deleteLetter('${item.id}')">मेटाउने</button><button class="btn-action btn-complete" onclick="markCompleted('${item.id}')">✅ सम्पन्न</button>` : 
-                        `<button class="btn-action btn-sign" onclick="openSignModal('${item.id}')">🔏 डिजिटल सही</button> <button class="btn-action btn-delete" onclick="deleteLetter('${item.id}')">मेटाउने</button><button class="btn-action btn-complete" onclick="markCompleted('${item.id}')">✅ सम्पन्न</button>`;
+                        `<span class="status-signed">✔️ प्रमाणित (Signed)</span> <button class="btn-action btn-delete" onclick="deleteLetter('${q(item.id)}')">मेटाउने</button><button class="btn-action btn-complete" onclick="markCompleted('${q(item.id)}')">✅ सम्पन्न</button>` : 
+                        `<button class="btn-action btn-sign" onclick="openSignModal('${q(item.id)}')">🔏 डिजिटल सही</button> <button class="btn-action btn-delete" onclick="deleteLetter('${q(item.id)}')">मेटाउने</button><button class="btn-action btn-complete" onclick="markCompleted('${q(item.id)}')">✅ सम्पन्न</button>`;
 
                     let tr = document.createElement('tr');
                     tr.id = item.id;
@@ -1132,14 +1139,14 @@
                             <td>${rowNum}</td>
                             <td>${badgeHTML}</td>
                             <td>${displayRegInfo}</td>
-                            <td>${item.sender}</td>
-                            <td><span style="color: #0369a1; font-weight: bold;">${item.senderDispNo}</span></td>
-                            <td>${item.subject}</td>
+                            <td>${esc(item.sender)}</td>
+                            <td><span style="color: #0369a1; font-weight: bold;">${esc(item.senderDispNo)}</span></td>
+                            <td>${esc(item.subject)}</td>
                             <td>
-                                <button class="btn-action btn-view" onclick="openPDF('${item.subject}', '${item.id}')">📄 पत्र हेर्नुहोस्</button>
-                                <button class="btn-action" style="background-color: #f1f5f9; color: #475569; margin-left: 4px;" onclick="openAttachmentModal('${item.id}')">📎 एटेचमेन्ट</button>
+                                <button class="btn-action btn-view" onclick="openPDF('${esc(item.subject)}', '${q(item.id)}')">📄 पत्र हेर्नुहोस्</button>
+                                <button class="btn-action" style="background-color: #f1f5f9; color: #475569; margin-left: 4px;" onclick="openAttachmentModal('${q(item.id)}')">📎 एटेचमेन्ट</button>
                             </td>
-                            <td><button class="btn-action btn-reply" onclick="openLetterPad('${item.id}', '${item.subject}', '${item.sender}', '${branchLabel}', '${item.senderDispNo}')">✍️ जवाफ / लेटर प्याड</button></td>
+                            <td><button class="btn-action btn-reply" onclick="openLetterPad('${q(item.id)}', '${esc(item.subject)}', '${esc(item.sender)}', '${q(branchLabel)}', '${esc(item.senderDispNo)}')">✍️ जवाफ / लेटर प्याड</button></td>
                             <td id="statusCell-${item.id}">${signCellHTML}</td>
                         `;
                     } else {
@@ -1147,15 +1154,15 @@
                             <td>${rowNum}</td>
                             <td>${badgeHTML}</td>
                             <td>${displayRegInfo}</td>
-                            <td>${item.sender}</td>
-                            <td>${item.senderDispNo}</td>
-                            <td>${item.subject}</td>
-                            ${branch !== 'admin' && branch !== 'hr' && branch !== 'accounts' ? '' : `<td>${fixDate(item.date) || ''}</td>`}
+                            <td>${esc(item.sender)}</td>
+                            <td>${esc(item.senderDispNo)}</td>
+                            <td>${esc(item.subject)}</td>
+                            ${branch !== 'admin' && branch !== 'hr' && branch !== 'accounts' ? '' : `<td>${esc(fixDate(item.date) || '')}</td>`}
                             <td>
-                                <button class="btn-action btn-view" onclick="openPDF('${item.subject}', '${item.id}')">📄 हेर्नुहोस्</button>
-                                <button class="btn-action" style="background-color: #f1f5f9; color: #475569; margin-left: 4px;" onclick="openAttachmentModal('${item.id}')">📎 एटेचमेन्ट</button>
+                                <button class="btn-action btn-view" onclick="openPDF('${esc(item.subject)}', '${q(item.id)}')">📄 हेर्नुहोस्</button>
+                                <button class="btn-action" style="background-color: #f1f5f9; color: #475569; margin-left: 4px;" onclick="openAttachmentModal('${q(item.id)}')">📎 एटेचमेन्ट</button>
                             </td>
-                            <td><button class="btn-action btn-reply" onclick="openLetterPad('${item.id}', '${item.subject}', '${item.sender}', '${branchLabel}', '${item.senderDispNo}')">✍️ जवाफ / लेटर प्याड</button></td>
+                            <td><button class="btn-action btn-reply" onclick="openLetterPad('${q(item.id)}', '${esc(item.subject)}', '${esc(item.sender)}', '${q(branchLabel)}', '${esc(item.senderDispNo)}')">✍️ जवाफ / लेटर प्याड</button></td>
                             <td id="statusCell-${item.id}">${signCellHTML}</td>
                         `;
                     }
@@ -1252,7 +1259,7 @@
 
         function finalizeNewItem(branch, type, regNo, regDateText, sender, senderDispNo, subject, attachmentRecord) {
             let newItem = {
-                id: 'row-custom-' + Date.now(),
+                id: 'row-custom-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
                 branch: branch,
                 type: type,
                 regNo: regNo,
@@ -1345,7 +1352,7 @@
             if (pin) {
                 let item = lettersData.find(d => d.id === targetId);
                 if (item) {
-                    item.signature = tempSelectedSigUrl || 'https://via.placeholder.com/120x50?text=Signed';
+                    item.signature = tempSelectedSigUrl || 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="50"><rect width="120" height="50" fill="#f1f5f9"/><text x="60" y="30" font-size="14" text-anchor="middle" fill="#166534">Signed</text></svg>');
                     item.signerName = signerName;
                     saveToLocalStorage();
                     alert('डिजिटल सही सफलतापूर्वक प्रमाणित र सेभ भयो!');
@@ -1432,17 +1439,17 @@
                 if (win) {
                     win.document.write(`
                         <html>
-                        <head><title>${docName} - पत्र प्रिभ्यु</title></head>
+                        <head><title>${esc(docName)} - पत्र प्रिभ्यु</title></head>
                         <body style="margin:0; background:#333; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh;">
                             <div style="background:#222; color:#fff; width:100%; padding:10px; display:flex; justify-content:space-between; align-items:center; box-sizing:border-box;">
-                                <span style="font-family:sans-serif; font-size:14px; padding-left:15px;">विषय: ${docName}</span>
+                                <span style="font-family:sans-serif; font-size:14px; padding-left:15px;">विषय: ${esc(docName)}</span>
                                 <div>
-                                    <a href="${dlUrl}" download="${item.attachment.name || 'document'}" style="background:#0284c7; color:white; padding:6px 14px; text-decoration:none; border-radius:4px; font-family:sans-serif; font-size:13px; margin-right:10px;">⬇️ डाउनलोड गर्ने</a>
+                                    <a href="${esc(dlUrl)}" download="${esc(item.attachment.name || 'document')}" style="background:#0284c7; color:white; padding:6px 14px; text-decoration:none; border-radius:4px; font-family:sans-serif; font-size:13px; margin-right:10px;">⬇️ डाउनलोड गर्ने</a>
                                     <button onclick="window.close()" style="background:#cbd5e1; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; font-family:sans-serif; font-size:13px;">बन्द गर्ने</button>
                                 </div>
                             </div>
                             <div style="flex-grow:1; width:100%; display:flex; justify-content:center; align-items:center;">
-                                <iframe src="${viewUrl}" style="width:100%; height:100%; border:none;"></iframe>
+                                <iframe src="${esc(viewUrl)}" style="width:100%; height:100%; border:none;"></iframe>
                             </div>
                         </body>
                         </html>
@@ -1463,7 +1470,7 @@
             let item = lettersData.find(d => d.id === id);
             let infoDiv = document.getElementById('currentAttachmentInfo');
             if (item && item.attachment && item.attachment.name) {
-                infoDiv.innerHTML = `हाल एटेच गरिएको फाइल: <b style="color: #0369a1;">${item.attachment.name}</b>`;
+                infoDiv.innerHTML = `हाल एटेच गरिएको फाइल: <b style="color: #0369a1;">${esc(item.attachment.name)}</b>`;
             } else {
                 infoDiv.innerHTML = 'हाल कुनै कागजात एटेच गरिएको छैन।';
             }
@@ -1497,7 +1504,7 @@
             let sigArea = document.getElementById('padSignatureArea');
             if (item && item.signature) {
                 let displayName = item.signerName || 'गणपति';
-                sigArea.innerHTML = `<img src="${item.signature}" alt="Signature"><div class="sig-line" contenteditable="true" style="color: var(--success); font-weight: bold;">✔️ प्रमाणित (${displayName})</div>`;
+                sigArea.innerHTML = `<img src="${esc(item.signature)}" alt="Signature"><div class="sig-line" contenteditable="true" style="color: var(--success); font-weight: bold;">✔️ प्रमाणित (${esc(displayName)})</div>`;
             } else {
                 sigArea.innerHTML = '<div class="sig-line" contenteditable="true">(हस्ताक्षर बाँकी - क्लिक गरी नाम/पद लेख्नुहोस्)</div>';
             }
@@ -1579,11 +1586,12 @@
         }
         lettersData.forEach(function (i) { if (!i.updatedAt) i.updatedAt = 1; snap[i.id] = sig(i); });
 
+        function tf(opts) { var c = new AbortController(); setTimeout(function () { c.abort(); }, 60000); opts.signal = c.signal; return fetch(SHEET_URL, opts); }
         function post(body) {
-            return fetch(SHEET_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })
+            return tf({ method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })
                 .then(function (r) { return r.json(); })
                 .catch(function () {
-                    return fetch(SHEET_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })
+                    return tf({ method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })
                         .then(function () { return { status: "sent" }; });
                 });
         }
@@ -1623,12 +1631,12 @@
                         } else if (st === lt) { ack[s.id] = st; }
                     });
                     lettersData = Object.keys(map).map(function (k) { return map[k]; });
-                    if (res.now) localStorage.Keys ? null : localStorage.setItem(SK, res.now - 10000);
+                    if (res.now) localStorage.setItem(SK, res.now - 10000);
                     persist();
                     if (changed) { renderAllTables(); updateDashboardCounts(); }
                     var list = [];
                     lettersData.forEach(function (i) { if ((ack[i.id] || 0) < i.updatedAt) list.push(i); });
-                    Object.keys(tomb).keys ? null : Object.keys(tomb).forEach(function (id) { if ((ack[id] || 0) < tomb[id]) list.push({ id: id, deleted: true, updatedAt: tomb[id] }); });
+                    Object.keys(tomb).forEach(function (id) { if ((ack[id] || 0) < tomb[id]) list.push({ id: id, deleted: true, updatedAt: tomb[id] }); });
                     pushChunks(list, function () { busy = false; });
                 } catch (e) { console.warn("[Sync] त्रुटि", e); busy = false; }
             });
