@@ -597,10 +597,76 @@
                 display: none !important;
             }
         }
+
+        /* ===== हेडर: नेपाली मिति / समय / सिङ्क स्थिति ===== */
+        .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+        .np-datetime { text-align: right; line-height: 1.35; font-size: 13px; font-weight: 600; color: var(--secondary-color); }
+        .np-datetime .np-time { font-weight: 500; color: #475569; font-size: 12px; }
+        .sync-status { font-size: 11px; color: #64748b; cursor: pointer; user-select: none; }
+        .sync-status.ok { color: var(--success); }
+        .sync-status.err { color: #b91c1c; }
+        .sync-status.busy { color: #0284c7; }
+        .menu-toggle { display: none; background: var(--primary-color); color: #fff; border: none; border-radius: 6px; font-size: 20px; line-height: 1; padding: 8px 11px; cursor: pointer; }
+        .sidebar-overlay { display: none; }
+
+        /* ===== मोबाइल मैत्री (साना स्क्रिनमा मात्र लागू; डेस्कटप र प्रिन्टमा केही फरक पर्दैन) ===== */
+        @media screen and (max-width: 768px) {
+            body { height: 100vh; height: 100dvh; }
+
+            aside.sidebar {
+                position: fixed; top: 0; left: 0; bottom: 0;
+                width: 270px; max-width: 82vw; z-index: 1500;
+                transform: translateX(-102%); transition: transform 0.25s ease; box-shadow: none;
+            }
+            aside.sidebar.open { transform: translateX(0); box-shadow: 4px 0 16px rgba(0,0,0,0.35); }
+            .sidebar-overlay.show { display: block; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.45); z-index: 1400; }
+            .menu-toggle { display: block; flex-shrink: 0; }
+
+            .main-container { width: 100%; min-width: 0; }
+            header { padding: 10px 12px; gap: 8px; flex-wrap: wrap; align-items: center; }
+            .header-title { flex: 1; min-width: 0; }
+            .header-title h1 { font-size: 14px; line-height: 1.35; }
+            .header-right { order: 3; width: 100%; }
+            .user-profile { font-size: 12px; padding: 4px 10px; white-space: nowrap; }
+            .np-datetime { font-size: 12px; }
+            .np-datetime .np-time { font-size: 11px; }
+
+            .content-body { padding: 12px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
+            .stat-card { padding: 12px; }
+            .stat-card h3 { font-size: 12px; }
+            .stat-card .number { font-size: 18px; }
+            .data-section { padding: 12px; }
+            .section-header-flex { flex-wrap: wrap; gap: 8px; }
+            .data-section h2 { font-size: 15px; }
+            .search-box-container input { font-size: 16px; min-width: 0; }
+            table { font-size: 13px; }
+            table th, table td { padding: 10px 8px; }
+            .btn-action { padding: 8px 12px; font-size: 13px; margin-bottom: 4px; }
+            footer { font-size: 11px; padding: 12px; }
+
+            .modal-content { width: 92%; max-width: 450px; padding: 18px; max-height: 92vh; }
+            .modal-content textarea, .modal-content input, .modal-content select { font-size: 16px; }
+            .modal-buttons { flex-wrap: wrap; }
+
+            .letterpad-modal { align-items: flex-start; padding: 8px 0; }
+            .letterpad-page { width: 100%; max-width: 100%; height: auto; min-height: 0; padding: 16px 14px; gap: 14px; border-radius: 0; }
+            .letterpad-top-grid { flex-direction: column; align-items: center; gap: 8px; }
+            .np-logo-box, .gov-titles, .gov-contact-right { width: 100%; text-align: center; }
+            .letterpad-meta-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+            .letterpad-meta-row > div { text-align: left !important; }
+            .letterpad-subject-row .subject-text-container { display: block; }
+            .letterpad-subject-row input { width: 100% !important; }
+            .letterpad-page .editable-input { max-width: 100%; }
+            .letterpad-page-footer input { width: 100% !important; }
+            .letterpad-controls { flex-wrap: wrap; justify-content: center; }
+            .editable-content-box { height: 200px; }
+        }
     </style>
 </head>
 <body>
 
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
     <aside class="sidebar">
         <div>
             <div class="sidebar-header">
@@ -624,11 +690,16 @@
 
     <div class="main-container">
         <header>
+            <button type="button" class="menu-toggle" onclick="toggleSidebar()" aria-label="मेनु">☰</button>
             <div class="header-title" id="header-main-title">
                 <h1>गणको मुख्य ड्यासबोर्ड (Dashboard Overview)</h1>
             </div>
-            <div class="user-profile">
-                👤 गणपति / अधिकृत
+            <div class="header-right">
+                <div class="user-profile">
+                    👤 गणपति / अधिकृत
+                </div>
+                <div id="npDateTime" class="np-datetime"></div>
+                <div id="syncStatus" class="sync-status" title="डाटा सिङ्क स्थिति — क्लिक गरी अहिले नै सिङ्क गर्नुहोस्" onclick="if (typeof sync === 'function') sync()">🔄 सिङ्क तयार हुँदैछ…</div>
             </div>
         </header>
 
@@ -1393,6 +1464,7 @@
         });
 
         function switchTab(branchId, element) {
+            if (typeof closeSidebar === 'function') closeSidebar();
             let sections = document.querySelectorAll('.branch-section');
             sections.forEach(sec => sec.style.display = 'none');
             document.getElementById('section-' + branchId).style.display = 'block';
@@ -1556,15 +1628,92 @@
         });
     </script>
 
-    <!-- GOOGLE SHEET SYNC MODULE: अप्टिमाइज्ड सिङ्क र छिटो खुल्ने व्यवस्था -->
+        <!-- नेपाली मिति (बि.सं.), बार र समय: गणपति / अधिकृत मुनि देखिने -->
+    <script>
+    (function () {
+        "use strict";
+        var BS_START = 2070;                 // तलको तालिकाको पहिलो वर्ष
+        var AD_ANCHOR = 1365897600000;       // बि.सं. २०७०-०१-०१ को UTC मिलीसेकेन्ड
+        // प्रत्येक वर्षका १२ महिनाको दिन संख्या: अंक = (दिन - २९)
+        var BS_RAW = ["222322011011","223222101011","232321101011","232321110012","222322101011","223222101011","232321110011","232321110102","222322101011","223222101011","232321110011","232321110102","223222101011","223222101011","232321110012","132321110102","223222101011","223321101011","232321110012","132322010102","223222101011","223321101011","232321110012","222322011002","223222101011","223321101011","232321110012","222322011011","223222101011","232321101011"];
+        var MONTHS = ['बैशाख', 'जेठ', 'असार', 'श्रावण', 'भदौ', 'असोज', 'कार्तिक', 'मंसिर', 'पौष', 'माघ', 'फागुन', 'चैत'];
+        var DAYS = ['आइतबार', 'सोमबार', 'मंगलबार', 'बुधबार', 'बिहीबार', 'शुक्रबार', 'शनिबार'];
+        var DIG = '०१२३४५६७८९';
+
+        function np(n) { return String(n).replace(/\d/g, function (d) { return DIG.charAt(+d); }); }
+        function p2(n) { return (n < 10 ? '0' : '') + n; }
+
+        // ईश्वी सम्वत् (वर्ष, महिना १-१२, गते) → बिक्रम सम्वत्
+        function adToBs(y, m, d) {
+            var days = Math.round((Date.UTC(y, m - 1, d) - AD_ANCHOR) / 86400000);
+            if (days < 0) return null;
+            for (var yi = 0; yi < BS_RAW.length; yi++) {
+                for (var mi = 0; mi < 12; mi++) {
+                    var ml = 29 + (+BS_RAW[yi].charAt(mi));
+                    if (days < ml) return { y: BS_START + yi, m: mi, d: days + 1 };
+                    days -= ml;
+                }
+            }
+            return null;
+        }
+
+        // नेपाल समय (UTC+५:४५) — उपकरणको टाइमजोन जे भए पनि सही देखिने
+        function nepalNow() {
+            var t = new Date(Date.now() + 345 * 60000);
+            return { y: t.getUTCFullYear(), m: t.getUTCMonth() + 1, d: t.getUTCDate(), h: t.getUTCHours(), n: t.getUTCMinutes(), s: t.getUTCSeconds(), wd: t.getUTCDay() };
+        }
+        function period(h) { return (h >= 4 && h < 12) ? 'बिहान' : (h >= 12 && h < 16) ? 'दिउँसो' : (h >= 16 && h < 19) ? 'साँझ' : 'राति'; }
+        function timeText(t, withSec) {
+            var h12 = t.h % 12 || 12;
+            return period(t.h) + ' ' + np(p2(h12)) + ':' + np(p2(t.n)) + (withSec ? ':' + np(p2(t.s)) : '');
+        }
+        function dateText(t) {
+            var b = adToBs(t.y, t.m, t.d);
+            if (!b) return '';
+            return np(b.y) + ' साल ' + MONTHS[b.m] + ' ' + np(b.d) + ' गते, ' + DAYS[t.wd];
+        }
+        function render() {
+            var el = document.getElementById('npDateTime');
+            if (!el) return;
+            var t = nepalNow(), dt = dateText(t);
+            el.innerHTML = (dt ? '<div class="np-date">📅 ' + dt + '</div>' : '') + '<div class="np-time">🕐 ' + timeText(t, true) + ' बजे</div>';
+        }
+
+        window.npConvert = adToBs;
+        window.npTimeText = function () { return timeText(nepalNow(), false); };
+        render();
+        setInterval(render, 1000);
+
+        // मोबाइलमा साइडबार मेनु खोल्ने/बन्द गर्ने
+        window.toggleSidebar = function () {
+            var s = document.querySelector('aside.sidebar'), o = document.getElementById('sidebarOverlay');
+            if (s) s.classList.toggle('open');
+            if (o) o.classList.toggle('show');
+        };
+        window.closeSidebar = function () {
+            var s = document.querySelector('aside.sidebar'), o = document.getElementById('sidebarOverlay');
+            if (s) s.classList.remove('open');
+            if (o) o.classList.remove('show');
+        };
+    })();
+    </script>
+
+    <!-- GOOGLE SHEET SYNC MODULE: सबै कम्प्युटर तथा मोबाइलमा डाटा मिल्ने व्यवस्था -->
     <script>
     var sync;
     (function () {
         "use strict";
         var LS = "apf_letters_data", TK = "apf_tomb", AK = "apf_ack", SK = "apf_since";
         var J = function (k) { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch (e) { return {}; } };
-        var tomb = J(TK), ack = J(AK), snap = {}, timer = null, busy = false;
+        var tomb = J(TK), ack = J(AK), snap = {}, timer = null, busy = false, busyAt = 0;
+        var firstPull = true; // पेज खुल्दा सधैं Sheet बाट पूरै डाटा तान्ने (अरू उपकरणको डाटा छुट्न नदिन)
 
+        function status(kind, txt) {
+            var el = document.getElementById("syncStatus");
+            if (!el) return;
+            el.className = "sync-status " + kind;
+            el.textContent = txt;
+        }
         function sig(o) { return JSON.stringify(o, function (k, v) { return k === "updatedAt" ? undefined : v; }); }
         function persist() {
             try {
@@ -1595,13 +1744,27 @@
                         .then(function () { return { status: "sent" }; });
                 });
         }
+
+        // Sheet बाट डाटा तान्ने: पहिले JSONP, नभए साधारण GET (फलब्याक)
         function pull(cb) {
-            var name = "__cb" + Date.now(), s = document.createElement("script"), done = false;
-            function end(res) { if (done) return; done = true; delete window[name]; if (s.parentNode) s.parentNode.removeChild(s); cb(res); }
-            window[name] = end;
-            s.onerror = function () { end(null); };
-            setTimeout(function () { end(null); }, 25000);
-            s.src = SHEET_URL + "?callback=" + name + "&since=" + (+localStorage.getItem(SK) || 0) + "&t=" + Date.now();
+            var since = firstPull ? 0 : (+localStorage.getItem(SK) || 0);
+            var name = "__cb" + Date.now(), s = document.createElement("script"), done = false, tm;
+            function finish(res) {
+                if (done) return;
+                done = true; clearTimeout(tm);
+                window[name] = function () {};
+                if (s.parentNode) s.parentNode.removeChild(s);
+                if (res && res.status === "ok" && Array.isArray(res.data)) { cb(res); return; }
+                var c = new AbortController(), t2 = setTimeout(function () { c.abort(); }, 25000);
+                fetch(SHEET_URL + "?since=" + since + "&t=" + Date.now(), { signal: c.signal })
+                    .then(function (r) { return r.json(); })
+                    .then(function (r) { clearTimeout(t2); cb(r && r.status === "ok" && Array.isArray(r.data) ? r : null); })
+                    .catch(function () { clearTimeout(t2); cb(null); });
+            }
+            window[name] = finish;
+            s.onerror = function () { finish(null); };
+            tm = setTimeout(function () { finish(null); }, 25000);
+            s.src = SHEET_URL + "?callback=" + name + "&since=" + since + "&t=" + Date.now();
             document.body.appendChild(s);
         }
         function pushChunks(list, done) {
@@ -1612,13 +1775,25 @@
                 else done();
             }).catch(done);
         }
+        function pendingCount() {
+            var n = 0;
+            lettersData.forEach(function (i) { if ((ack[i.id] || 0) < (i.updatedAt || 0)) n++; });
+            Object.keys(tomb).forEach(function (id) { if ((ack[id] || 0) < tomb[id]) n++; });
+            return n;
+        }
 
-        sync = function() {
+        sync = function () {
+            if (busy && Date.now() - busyAt > 90000) busy = false; // अड्किएको भए खोल्ने
             if (busy) return;
-            busy = true;
+            busy = true; busyAt = Date.now();
+            status("busy", "🔄 सिङ्क हुँदैछ…");
             pull(function (res) {
                 try {
-                    if (!res || res.status !== "ok" || !Array.isArray(res.data)) { busy = false; return; }
+                    if (!res) {
+                        busy = false;
+                        status("err", "⚠️ सिङ्क हुन सकेन — इन्टरनेट जाँच्नुहोस् (क्लिक गरी पुनः प्रयास)");
+                        return;
+                    }
                     stamp();
                     var map = {}, changed = false;
                     lettersData.forEach(function (i) { map[i.id] = i; });
@@ -1632,13 +1807,19 @@
                     });
                     lettersData = Object.keys(map).map(function (k) { return map[k]; });
                     if (res.now) localStorage.setItem(SK, res.now - 10000);
+                    firstPull = false;
                     persist();
                     if (changed) { renderAllTables(); updateDashboardCounts(); }
                     var list = [];
                     lettersData.forEach(function (i) { if ((ack[i.id] || 0) < i.updatedAt) list.push(i); });
                     Object.keys(tomb).forEach(function (id) { if ((ack[id] || 0) < tomb[id]) list.push({ id: id, deleted: true, updatedAt: tomb[id] }); });
-                    pushChunks(list, function () { busy = false; });
-                } catch (e) { console.warn("[Sync] त्रुटि", e); busy = false; }
+                    pushChunks(list, function () {
+                        busy = false;
+                        var p = pendingCount();
+                        if (p) status("err", "⚠️ " + p + " वटा Sheet मा पठाउन बाँकी (क्लिक गरी पुनः प्रयास)");
+                        else status("ok", "✅ सिङ्क भयो · " + (window.npTimeText ? window.npTimeText() : ""));
+                    });
+                } catch (e) { console.warn("[Sync] त्रुटि", e); busy = false; status("err", "⚠️ सिङ्क त्रुटि (क्लिक गरी पुनः प्रयास)"); }
             });
         };
 
@@ -1652,8 +1833,11 @@
         };
 
         setTimeout(sync, 500); // पहिल्यै क्यास भएको डाटा तुरुन्त देखाएर ब्याकग्राउन्डमा सिङ्क गर्ने
-        setInterval(sync, 30000);
+        setInterval(sync, 20000);
         document.addEventListener("visibilitychange", function () { if (!document.hidden) sync(); });
+        window.addEventListener("online", function () { sync(); });
+        window.addEventListener("focus", function () { sync(); });
+        window.addEventListener("pageshow", function () { sync(); });
     })();
     </script>
 </body>
