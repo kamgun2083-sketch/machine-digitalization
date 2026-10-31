@@ -699,7 +699,7 @@
                     👤 गणपति / अधिकृत
                 </div>
                 <div id="npDateTime" class="np-datetime"></div>
-                <div id="syncStatus" class="sync-status" title="डाटा सिङ्क स्थिति — क्लिक गरी अहिले नै सिङ्क गर्नुहोस्" onclick="if (typeof sync === 'function') sync()">🔄 सिङ्क तयार हुँदैछ…</div>
+                <div id="syncStatus" class="sync-status" title="डाटा सिङ्क स्थिति — क्लिक गरी सबै डाटा Sheet मा फेरि पठाउनुहोस्" onclick="if (typeof sync === 'function') sync(true)">🔄 सिङ्क तयार हुँदैछ…</div>
             </div>
         </header>
 
@@ -1708,11 +1708,12 @@
         var tomb = J(TK), ack = J(AK), snap = {}, timer = null, busy = false, busyAt = 0;
         var firstPull = true; // पेज खुल्दा सधैं Sheet बाट पूरै डाटा तान्ने (अरू उपकरणको डाटा छुट्न नदिन)
 
-        function status(kind, txt) {
+        function status(kind, txt, detail) {
             var el = document.getElementById("syncStatus");
             if (!el) return;
             el.className = "sync-status " + kind;
             el.textContent = txt;
+            el.title = detail || "डाटा सिङ्क स्थिति — क्लिक गरी सबै डाटा Sheet मा फेरि पठाउनुहोस्";
         }
         function sig(o) { return JSON.stringify(o, function (k, v) { return k === "updatedAt" ? undefined : v; }); }
         function persist() {
@@ -1767,59 +1768,71 @@
             s.src = SHEET_URL + "?callback=" + name + "&since=" + since + "&t=" + Date.now();
             document.body.appendChild(s);
         }
-        function pushChunks(list, done) {
-            if (!list.length) return done();
-            var part = list.splice(0, 8);
-            post({ action: "upsert", items: part }).then(function (r) {
-                if (r && r.status === "ok") { part.forEach(function (i) { ack[i.id] = i.updatedAt; }); persist(); pushChunks(list, done); }
-                else done();
-            }).catch(done);
-        }
-        function pendingCount() {
-            var n = 0;
-            lettersData.forEach(function (i) { if ((ack[i.id] || 0) < (i.updatedAt || 0)) n++; });
-            Object.keys(tomb).forEach(function (id) { if ((ack[id] || 0) < tomb[id]) n++; });
-            return n;
+
+        // एक-एक वटा गरी Sheet मा पठाउने: एउटा अड्किए पनि बाँकी पठाउन नरोकिने
+        function pushEach(list, done) {
+            var i = 0, ok = 0, sent = 0, fails = 0, msg = "";
+            (function next() {
+                if (i >= list.length) return done({ ok: ok, sent: sent, fails: fails, msg: msg });
+                var it = list[i++];
+                post({ action: "upsert", items: [it] }).then(function (r) {
+                    if (r && r.status === "ok") { ack[it.id] = it.updatedAt; persist(); ok++; }
+                    else if (r && r.status === "sent") { sent++; }
+                    else { fails++; msg = (r && r.message) ? String(r.message) : "सर्भरले जवाफ दिएन"; }
+                    next();
+                }).catch(function (e) { fails++; msg = String(e); next(); });
+            })();
         }
 
-        sync = function () {
+        sync = function (force) {
             if (busy && Date.now() - busyAt > 90000) busy = false; // अड्किएको भए खोल्ने
             if (busy) return;
             busy = true; busyAt = Date.now();
             status("busy", "🔄 सिङ्क हुँदैछ…");
+            if (force === true) { ack = {}; }  // क्लिक गरेमा सबै डाटा फेरि पठाउने (Sheet ले नयाँ भएको कायम राख्छ)
             pull(function (res) {
+                var pullOk = !!res;
                 try {
-                    if (!res) {
-                        busy = false;
-                        status("err", "⚠️ सिङ्क हुन सकेन — इन्टरनेट जाँच्नुहोस् (क्लिक गरी पुनः प्रयास)");
-                        return;
-                    }
                     stamp();
-                    var map = {}, changed = false;
-                    lettersData.forEach(function (i) { map[i.id] = i; });
-                    res.data.forEach(function (s) {
-                        var l = map[s.id], lt = l ? (l.updatedAt || 0) : (tomb[s.id] || 0), st = s.updatedAt || 0;
-                        if (st > lt) {
-                            changed = true; ack[s.id] = st;
-                            if (s.deleted) { delete map[s.id]; tomb[s.id] = st; delete snap[s.id]; }
-                            else { s.regDate = fixDate(s.regDate); s.date = fixDate(s.date); map[s.id] = s; snap[s.id] = sig(s); delete tomb[s.id]; }
-                        } else if (st === lt) { ack[s.id] = st; }
-                    });
-                    lettersData = Object.keys(map).map(function (k) { return map[k]; });
-                    if (res.now) localStorage.setItem(SK, res.now - 10000);
-                    firstPull = false;
-                    persist();
-                    if (changed) { renderAllTables(); updateDashboardCounts(); }
-                    var list = [];
-                    lettersData.forEach(function (i) { if ((ack[i.id] || 0) < i.updatedAt) list.push(i); });
-                    Object.keys(tomb).forEach(function (id) { if ((ack[id] || 0) < tomb[id]) list.push({ id: id, deleted: true, updatedAt: tomb[id] }); });
-                    pushChunks(list, function () {
-                        busy = false;
-                        var p = pendingCount();
-                        if (p) status("err", "⚠️ " + p + " वटा Sheet मा पठाउन बाँकी (क्लिक गरी पुनः प्रयास)");
-                        else status("ok", "✅ सिङ्क भयो · " + (window.npTimeText ? window.npTimeText() : ""));
-                    });
-                } catch (e) { console.warn("[Sync] त्रुटि", e); busy = false; status("err", "⚠️ सिङ्क त्रुटि (क्लिक गरी पुनः प्रयास)"); }
+                    if (res) {
+                        var map = {}, changed = false;
+                        lettersData.forEach(function (i) { map[i.id] = i; });
+                        res.data.forEach(function (s) {
+                            var l = map[s.id], lt = l ? (l.updatedAt || 0) : (tomb[s.id] || 0), st = s.updatedAt || 0;
+                            if (st > lt) {
+                                changed = true; ack[s.id] = st;
+                                if (s.deleted) { delete map[s.id]; tomb[s.id] = st; delete snap[s.id]; }
+                                else { s.regDate = fixDate(s.regDate); s.date = fixDate(s.date); map[s.id] = s; snap[s.id] = sig(s); delete tomb[s.id]; }
+                            } else if (st === lt) { ack[s.id] = st; }
+                        });
+                        lettersData = Object.keys(map).map(function (k) { return map[k]; });
+                        if (res.now) localStorage.setItem(SK, res.now - 10000);
+                        firstPull = false;
+                        persist();
+                        if (changed) { renderAllTables(); updateDashboardCounts(); }
+                    }
+                } catch (e) { console.warn("[Sync] त्रुटि", e); pullOk = false; }
+
+                // Sheet बाट डाटा तान्न नसके पनि नयाँ/बदलिएको डाटा Sheet मा पठाउने
+                var list = [];
+                lettersData.forEach(function (i) { if ((ack[i.id] || 0) < (i.updatedAt || 0)) list.push(i); });
+                Object.keys(tomb).forEach(function (id) { if ((ack[id] || 0) < tomb[id]) list.push({ id: id, deleted: true, updatedAt: tomb[id] }); });
+                persist();
+
+                pushEach(list, function (r) {
+                    busy = false;
+                    var t = window.npTimeText ? window.npTimeText() : "";
+                    if (r.fails) {
+                        status("err", "⚠️ " + r.fails + " वटा Sheet मा पठाउन सकिएन (क्लिक गरी पुनः प्रयास)", "सर्भरको सन्देश: " + r.msg.slice(0, 200));
+                    } else if (!pullOk) {
+                        status("err", "⚠️ Sheet बाट डाटा तान्न सकिएन (क्लिक गरी पुनः प्रयास)" + (r.ok ? " · " + r.ok + " वटा पठाइयो" : ""),
+                            "Apps Script को Web App 'Who has access: Anyone' मा deploy भएको छ कि जाँच्नुहोस्।");
+                    } else if (r.sent) {
+                        status("busy", "📤 " + r.sent + " वटा पठाइयो, पुष्टि हुन बाँकी · " + t);
+                    } else {
+                        status("ok", "✅ सिङ्क भयो · " + t + (r.ok ? " (" + r.ok + " वटा पठाइयो)" : ""));
+                    }
+                });
             });
         };
 
