@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://upload.wikimedia.org https://drive.google.com https://*.googleusercontent.com; connect-src 'self' https://script.google.com https://script.googleusercontent.com; frame-src https://drive.google.com https://docs.google.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta name="referrer" content="no-referrer">
+    <style id="secStyle">body:not(.sec-ok) > *:not(#secOverlay):not(script){display:none !important;}</style>
     <title>काठमाडौं उपत्यका प्रहरी सशस्त्र प्रहरी गण नं. २ - डिजिटल पत्राचार तथा हस्ताक्षर प्रणाली</title>
     <style>
         :root {
@@ -1203,7 +1206,7 @@
                         `<button class="btn-action btn-sign" onclick="openSignModal('${q(item.id)}')">🔏 डिजिटल सही</button> <button class="btn-action btn-delete" onclick="deleteLetter('${q(item.id)}')">मेटाउने</button><button class="btn-action btn-complete" onclick="markCompleted('${q(item.id)}')">✅ सम्पन्न</button>`;
 
                     let tr = document.createElement('tr');
-                    tr.id = item.id;
+                    tr.id = String(item.id);
 
                     if (branch === 'letter') {
                         tr.innerHTML = `
@@ -1214,11 +1217,11 @@
                             <td><span style="color: #0369a1; font-weight: bold;">${esc(item.senderDispNo)}</span></td>
                             <td>${esc(item.subject)}</td>
                             <td>
-                                <button class="btn-action btn-view" onclick="openPDF('${esc(item.subject)}', '${q(item.id)}')">📄 पत्र हेर्नुहोस्</button>
+                                <button class="btn-action btn-view" onclick="openPDF('${q(item.subject)}', '${q(item.id)}')">📄 पत्र हेर्नुहोस्</button>
                                 <button class="btn-action" style="background-color: #f1f5f9; color: #475569; margin-left: 4px;" onclick="openAttachmentModal('${q(item.id)}')">📎 एटेचमेन्ट</button>
                             </td>
-                            <td><button class="btn-action btn-reply" onclick="openLetterPad('${q(item.id)}', '${esc(item.subject)}', '${esc(item.sender)}', '${q(branchLabel)}', '${esc(item.senderDispNo)}')">✍️ जवाफ / लेटर प्याड</button></td>
-                            <td id="statusCell-${item.id}">${signCellHTML}</td>
+                            <td><button class="btn-action btn-reply" onclick="openLetterPad('${q(item.id)}', '${q(item.subject)}', '${q(item.sender)}', '${q(branchLabel)}', '${q(item.senderDispNo)}')">✍️ जवाफ / लेटर प्याड</button></td>
+                            <td id="statusCell-${esc(item.id)}">${signCellHTML}</td>
                         `;
                     } else {
                         tr.innerHTML = `
@@ -1230,11 +1233,11 @@
                             <td>${esc(item.subject)}</td>
                             ${branch !== 'admin' && branch !== 'hr' && branch !== 'accounts' ? '' : `<td>${esc(fixDate(item.date) || '')}</td>`}
                             <td>
-                                <button class="btn-action btn-view" onclick="openPDF('${esc(item.subject)}', '${q(item.id)}')">📄 हेर्नुहोस्</button>
+                                <button class="btn-action btn-view" onclick="openPDF('${q(item.subject)}', '${q(item.id)}')">📄 हेर्नुहोस्</button>
                                 <button class="btn-action" style="background-color: #f1f5f9; color: #475569; margin-left: 4px;" onclick="openAttachmentModal('${q(item.id)}')">📎 एटेचमेन्ट</button>
                             </td>
-                            <td><button class="btn-action btn-reply" onclick="openLetterPad('${q(item.id)}', '${esc(item.subject)}', '${esc(item.sender)}', '${q(branchLabel)}', '${esc(item.senderDispNo)}')">✍️ जवाफ / लेटर प्याड</button></td>
-                            <td id="statusCell-${item.id}">${signCellHTML}</td>
+                            <td><button class="btn-action btn-reply" onclick="openLetterPad('${q(item.id)}', '${q(item.subject)}', '${q(item.sender)}', '${q(branchLabel)}', '${q(item.senderDispNo)}')">✍️ जवाफ / लेटर प्याड</button></td>
+                            <td id="statusCell-${esc(item.id)}">${signCellHTML}</td>
                         `;
                     }
                     tableBody.appendChild(tr);
@@ -1441,7 +1444,7 @@
 
         document.getElementById('sigImageUpload').addEventListener('change', function(event) {
             let file = event.target.files[0];
-            if (file) {
+            if (file && secImgOk(file)) {
                 let reader = new FileReader();
                 reader.onload = function(e) {
                     let im = new Image();
@@ -1501,13 +1504,13 @@
 
         function openPDF(docName, id) {
             let item = lettersData.find(d => d.id === id);
-            if (item && item.attachment && item.attachment.url) {
+            if (item && item.attachment && item.attachment.url && secSafeUrl(item.attachment.url)) {
                 let att = item.attachment, gid = att.fileId || ((att.url || '').match(/[-\w]{25,}/) || [])[0];
                 let isDrive = /drive\.google\.com|docs\.google\.com/.test(att.url || '') && gid;
                 let viewUrl = isDrive ? 'https://drive.google.com/file/d/' + gid + '/preview' : att.url;
                 let dlUrl = isDrive ? 'https://drive.google.com/uc?export=download&id=' + gid : att.url;
                 
-                let win = window.open('', '_blank');
+                let win = window.open('', '_blank'); if (win) win.opener = null;
                 if (win) {
                     win.document.write(`
                         <html>
@@ -1521,7 +1524,7 @@
                                 </div>
                             </div>
                             <div style="flex-grow:1; width:100%; display:flex; justify-content:center; align-items:center;">
-                                <iframe src="${esc(viewUrl)}" style="width:100%; height:100%; border:none;"></iframe>
+                                <iframe sandbox="allow-scripts allow-same-origin allow-popups allow-forms" referrerpolicy="no-referrer" src="${esc(viewUrl)}" style="width:100%; height:100%; border:none;"></iframe>
                             </div>
                         </body>
                         </html>
@@ -1569,14 +1572,14 @@
             let item = lettersData.find(d => d.id === id);
 
             document.getElementById('padSubject').value = (item && item.replySubject) ? item.replySubject : subject;
-            document.getElementById('padReplyText').innerHTML = (item && item.replyText) ? item.replyText : '';
+            document.getElementById('padReplyText').innerHTML = (item && item.replyText) ? secClean(item.replyText) : '';
             document.getElementById('padPraPaSa').value = (item && item.replyPraPaSa) ? item.replyPraPaSa : (senderDispatchNo || '-');
             if (branchName) document.getElementById('padBranchTitle').innerText = '(' + branchName + ')';
 
             let sigArea = document.getElementById('padSignatureArea');
             if (item && item.signature) {
                 let displayName = item.signerName || 'गणपति';
-                sigArea.innerHTML = `<img src="${esc(item.signature)}" alt="Signature"><div class="sig-line" contenteditable="true" style="color: var(--success); font-weight: bold;">✔️ प्रमाणित (${esc(displayName)})</div>`;
+                sigArea.innerHTML = `<img src="${esc(secImg(item.signature))}" alt="Signature"><div class="sig-line" contenteditable="true" style="color: var(--success); font-weight: bold;">✔️ प्रमाणित (${esc(displayName)})</div>`;
             } else {
                 sigArea.innerHTML = '<div class="sig-line" contenteditable="true">(हस्ताक्षर बाँकी - क्लिक गरी नाम/पद लेख्नुहोस्)</div>';
             }
@@ -1589,7 +1592,7 @@
             let item = lettersData.find(d => d.id === currentLetterUniqueId);
             if (item) {
                 item.replySubject = document.getElementById('padSubject').value;
-                item.replyText = document.getElementById('padReplyText').innerHTML;
+                item.replyText = secClean(document.getElementById('padReplyText').innerHTML);
                 item.replyPraPaSa = document.getElementById('padPraPaSa').value;
                 saveToLocalStorage();
             }
@@ -1765,8 +1768,8 @@
             window[name] = finish;
             s.onerror = function () { finish(null); };
             tm = setTimeout(function () { finish(null); }, 25000);
-            s.src = SHEET_URL + "?callback=" + name + "&since=" + since + "&t=" + Date.now();
-            document.body.appendChild(s);
+            // सुरक्षा: बाहिरी JavaScript (JSONP) चलाउन रोकिएको; सिधै fetch प्रयोग हुन्छ
+            if (window.SEC_JSONP === true) { s.src = SHEET_URL + "?callback=" + name + "&since=" + since + "&t=" + Date.now(); document.body.appendChild(s); } else { finish(null); }
         }
 
         // एक-एक वटा गरी Sheet मा पठाउने: एउटा अड्किए पनि बाँकी पठाउन नरोकिने
@@ -1785,6 +1788,7 @@
         }
 
         sync = function (force) {
+            if (!window.SEC_OK) return;   // लगइन नगरी सिङ्क नगर्ने
             if (busy && Date.now() - busyAt > 90000) busy = false; // अड्किएको भए खोल्ने
             if (busy) return;
             busy = true; busyAt = Date.now();
@@ -1853,5 +1857,424 @@
         window.addEventListener("pageshow", function () { sync(); });
     })();
     </script>
+<!-- ===== सुरक्षा तह (Security Layer): लगइन, भूमिका, PIN प्रमाणीकरण, लग, सफाइ, फाइल जाँच ===== -->
+<script>
+(function () {
+    "use strict";
+    var UK = "apf_sec_users", AUK = "apf_sec_audit", LKK = "apf_sec_lock";
+    var ITER = 210000, IDLE_MS = 15 * 60 * 1000, MAXF = 5;
+    var enc = new TextEncoder(), cur = null, idleT = null;
+    window.SEC_OK = false;
+
+    // अर्को साइटको फ्रेम भित्र खुल्न नदिने (clickjacking)
+    try { if (window.top !== window.self) window.top.location = window.self.location; } catch (e) { document.documentElement.innerHTML = ""; return; }
+
+    /* ---------- साना सहायक ---------- */
+    function jget(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
+    function jset(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+    function b64(buf) { var a = new Uint8Array(buf), s = ""; for (var i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s); }
+    function unb64(s) { var b = atob(s), a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
+    function rnd(n) { return b64(crypto.getRandomValues(new Uint8Array(n))); }
+    function eq(a, b) { if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false; var d = 0; for (var i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; }
+    function kdf(secret, salt, iter) {
+        return crypto.subtle.importKey("raw", enc.encode(secret), "PBKDF2", false, ["deriveBits"]).then(function (k) {
+            return crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: unb64(salt), iterations: iter }, k, 256);
+        }).then(b64);
+    }
+    function sha(t) { return crypto.subtle.digest("SHA-256", enc.encode(t)).then(b64); }
+    function h(tag, attrs, kids) {
+        var e = document.createElement(tag);
+        Object.keys(attrs || {}).forEach(function (k) {
+            if (k === "text") e.textContent = attrs[k];
+            else if (k === "style") e.style.cssText = attrs[k];
+            else if (k.slice(0, 2) === "on") e.addEventListener(k.slice(2), attrs[k]);
+            else e.setAttribute(k, attrs[k]);
+        });
+        (kids || []).forEach(function (c) { if (c) e.appendChild(c); });
+        return e;
+    }
+    var INP = "width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:4px;margin-bottom:12px;font-size:14px;";
+    var BTN = "background:#134074;color:#fff;border:none;border-radius:4px;padding:10px 16px;cursor:pointer;font-size:14px;";
+    var LBL = "display:block;font-size:13px;color:#475569;margin-bottom:4px;font-weight:600;";
+    var ROLE = { admin: "प्रशासक (गणपति)", officer: "हस्ताक्षरकर्ता अधिकृत", clerk: "सामान्य प्रयोगकर्ता" };
+    function field(label, id, type, ph) { return [h("label", { style: LBL, text: label }), h("input", { id: id, type: type || "text", placeholder: ph || "", autocomplete: "off", style: INP })]; }
+    function val(id) { return document.getElementById(id).value; }
+    function strongPw(p) { return typeof p === "string" && p.length >= 10 && /[A-Za-z]/.test(p) && /\d/.test(p); }
+    function validPin(p) { return /^\d{6,8}$/.test(p); }
+    function mins(s) { return Math.ceil(s / 60) + " मिनेट"; }
+
+    /* ---------- गलत प्रयास सीमा (lockout) ---------- */
+    function lockLeft(key) { var r = jget(LKK, {})[key]; return (r && r.until > Date.now()) ? Math.ceil((r.until - Date.now()) / 1000) : 0; }
+    function failed(key) {
+        var m = jget(LKK, {}), r = m[key] || { n: 0, until: 0 };
+        r.n++; if (r.n >= MAXF) r.until = Date.now() + Math.min(Math.pow(2, r.n - MAXF) * 60000, 3600000);
+        m[key] = r; jset(LKK, m);
+    }
+    function clearFail(key) { var m = jget(LKK, {}); delete m[key]; jset(LKK, m); }
+
+    /* ---------- Audit log (hash-chain) ---------- */
+    var aq = Promise.resolve();
+    function audit(a, d) {
+        var u = cur ? cur.u : "-";
+        aq = aq.then(function () {
+            var log = jget(AUK, []), p = log.length ? log[log.length - 1].h : "0";
+            var e = { t: Date.now(), u: u, a: a, d: String(d || "").slice(0, 200), p: p };
+            return sha(JSON.stringify([e.t, e.u, e.a, e.d, e.p])).then(function (x) {
+                e.h = x; log.push(e); if (log.length > 1000) log = log.slice(-1000); jset(AUK, log);
+            });
+        }).catch(function () {});
+    }
+    function verifyLog() {
+        var log = jget(AUK, []), bad = -1, p = Promise.resolve();
+        log.forEach(function (e, i) {
+            p = p.then(function () {
+                if (bad >= 0) return;
+                return sha(JSON.stringify([e.t, e.u, e.a, e.d, e.p])).then(function (x) {
+                    if (x !== e.h || (i > 0 && e.p !== log[i - 1].h)) bad = i;
+                });
+            });
+        });
+        return p.then(function () { return bad; });
+    }
+
+    /* ---------- खाता व्यवस्थापन ---------- */
+    function users() { return jget(UK, {}); }
+    function mkUser(u, name, role, pw, pin) {
+        var salt = rnd(16), pinSalt = rnd(16);
+        return Promise.all([kdf(pw, salt, ITER), kdf(pin, pinSalt, ITER)]).then(function (r) {
+            return { u: u, name: name, role: role, salt: salt, hash: r[0], pinSalt: pinSalt, pinHash: r[1], iter: ITER, created: Date.now() };
+        });
+    }
+
+    /* ---------- लगइन / सेटअप स्क्रिन ---------- */
+    function overlay() {
+        var o = document.getElementById("secOverlay"); if (o) o.remove();
+        o = h("div", { id: "secOverlay", style: "position:fixed;inset:0;background:#0b2545;z-index:5000;display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:20px;" });
+        document.body.appendChild(o); return o;
+    }
+    function card(title, sub) {
+        return h("div", { style: "background:#fff;border-radius:8px;padding:28px;width:400px;max-width:100%;box-shadow:0 8px 30px rgba(0,0,0,.4);" }, [
+            h("h3", { style: "color:#0b2545;font-size:16px;margin-bottom:4px;", text: title }),
+            h("p", { style: "color:#64748b;font-size:12px;margin-bottom:16px;", text: sub })
+        ]);
+    }
+    function msg(card0) { var m = h("div", { id: "secMsg", style: "color:#b91c1c;font-size:13px;margin-bottom:10px;min-height:16px;" }); card0.appendChild(m); return m; }
+    function say(t) { var m = document.getElementById("secMsg"); if (m) m.textContent = t; }
+
+    function showAuth() {
+        var o = overlay();
+        if (!window.crypto || !crypto.subtle) {
+            var c0 = card("सुरक्षित जडान चाहिन्छ", "यो प्रणाली HTTPS (वा localhost) मा मात्र चल्छ।");
+            c0.appendChild(h("p", { style: "font-size:13px;color:#b91c1c;", text: "तपाईंको ब्राउजरमा सुरक्षित क्रिप्टो सुविधा उपलब्ध छैन। कृपया https:// ठेगानाबाट खोल्नुहोस्।" }));
+            o.appendChild(c0); return;
+        }
+        if (Object.keys(users()).length === 0) return showSetup(o);
+        var c = card("डिजिटल पत्राचार तथा हस्ताक्षर प्रणाली", "प्रवेश गर्न प्रयोगकर्ता खाता प्रमाणित गर्नुहोस्");
+        field("प्रयोगकर्ता नाम", "secU").forEach(function (e) { c.appendChild(e); });
+        field("पासवर्ड", "secP", "password").forEach(function (e) { c.appendChild(e); });
+        msg(c);
+        var b = h("button", { style: BTN + "width:100%;", text: "प्रवेश गर्ने", onclick: doLogin });
+        c.appendChild(b);
+        c.addEventListener("keydown", function (ev) { if (ev.key === "Enter") doLogin(); });
+        o.appendChild(c);
+        setTimeout(function () { var x = document.getElementById("secU"); if (x) x.focus(); }, 50);
+    }
+    var DUMMY = rnd(16);
+    function doLogin() {
+        var un = val("secU").trim().toLowerCase(), pw = val("secP"), key = "login:" + un;
+        if (!un || !pw) { say("प्रयोगकर्ता नाम र पासवर्ड भर्नुहोस्।"); return; }
+        var left = lockLeft(key);
+        if (left) { say("धेरै गलत प्रयास। " + mins(left) + " पछि फेरि प्रयास गर्नुहोस्।"); return; }
+        var rec = users()[un];
+        kdf(pw, rec ? rec.salt : DUMMY, rec ? rec.iter : ITER).then(function (hh) {
+            if (rec && eq(hh, rec.hash)) {
+                clearFail(key); cur = rec; window.SEC_OK = true;
+                document.body.classList.add("sec-ok");
+                var o = document.getElementById("secOverlay"); if (o) o.remove();
+                audit("login", un); injectBar(); startIdle();
+                try { renderAllTables(); updateDashboardCounts(); } catch (e) {}
+                try { if (typeof sync === "function") sync(); } catch (e) {}
+            } else {
+                failed(key); audit("login-fail", un);
+                say("प्रयोगकर्ता नाम वा पासवर्ड मिलेन।");
+                document.getElementById("secP").value = "";
+            }
+        });
+    }
+    function showSetup(o) {
+        var c = card("प्रारम्भिक सेटअप: प्रशासक खाता बनाउनुहोस्", "यो उपकरणमा पहिलो पटक खोलिएको छ। प्रशासक (गणपति) को खाता, पासवर्ड र सही गर्ने PIN बनाउनुहोस्।");
+        field("प्रयोगकर्ता नाम (अंग्रेजीमा)", "sU").forEach(function (e) { c.appendChild(e); });
+        field("नाम / पद (सहीमा देखिने)", "sN", "text", "जस्तै: ने.पौ. रामप्रसाद शर्मा, गणपति").forEach(function (e) { c.appendChild(e); });
+        field("पासवर्ड (कम्तीमा १० अक्षर, अक्षर + अङ्क)", "sP", "password").forEach(function (e) { c.appendChild(e); });
+        field("पासवर्ड फेरि लेख्नुहोस्", "sP2", "password").forEach(function (e) { c.appendChild(e); });
+        field("सही गर्ने PIN (६–८ अङ्क)", "sPin", "password").forEach(function (e) { c.appendChild(e); });
+        msg(c);
+        c.appendChild(h("button", { style: BTN + "width:100%;", text: "खाता बनाउने", onclick: function () {
+            var u = val("sU").trim().toLowerCase(), n = val("sN").trim(), p = val("sP"), p2 = val("sP2"), pin = val("sPin");
+            if (!/^[a-z0-9._-]{3,30}$/.test(u)) return say("प्रयोगकर्ता नाम ३–३० अक्षर (a-z, 0-9, . _ -) हुनुपर्छ।");
+            if (!n) return say("नाम / पद लेख्नुहोस्।");
+            if (!strongPw(p)) return say("पासवर्ड कम्तीमा १० अक्षरको र अक्षर तथा अङ्क दुवै हुनुपर्छ।");
+            if (p !== p2) return say("दुई पासवर्ड मिलेनन्।");
+            if (!validPin(pin)) return say("PIN ६–८ अङ्कको हुनुपर्छ।");
+            mkUser(u, n.slice(0, 80), "admin", p, pin).then(function (rec) {
+                var all = users(); if (Object.keys(all).length) return say("खाता पहिल्यै बनिसकेको छ।");
+                all[u] = rec; jset(UK, all); cur = rec; audit("setup-admin", u); cur = null; showAuth();
+            });
+        } }));
+        o.appendChild(c);
+    }
+
+    /* ---------- लक / लगआउट / निष्क्रियता ---------- */
+    function lockApp(why) {
+        if (cur) audit(why || "logout", "");
+        aq.then(function () {
+            cur = null; window.SEC_OK = false;
+            document.body.classList.remove("sec-ok");
+            Array.prototype.forEach.call(document.querySelectorAll(".modal,.letterpad-modal"), function (m) { m.style.display = "none"; });
+            ["pinInput", "signerNameInput"].forEach(function (i) { var e = document.getElementById(i); if (e) e.value = ""; });
+            var a = document.getElementById("secAdmin"); if (a) a.remove();
+            var b = document.getElementById("secBar"); if (b) b.remove();
+            clearTimeout(idleT);
+            showAuth();
+        });
+    }
+    function startIdle() {
+        function reset() { if (!cur) return; clearTimeout(idleT); idleT = setTimeout(function () { lockApp("auto-lock"); }, IDLE_MS); }
+        ["mousemove", "keydown", "click", "touchstart", "scroll"].forEach(function (ev) { document.addEventListener(ev, reset, { passive: true, capture: true }); });
+        reset();
+    }
+    function injectBar() {
+        var old = document.getElementById("secBar"); if (old) old.remove();
+        var host = document.querySelector("aside.sidebar .sidebar-footer") || document.querySelector("aside.sidebar");
+        if (!host) return;
+        var bs = "background:#134074;color:#fff;border:none;border-radius:4px;padding:5px 8px;cursor:pointer;font-size:11px;margin:4px 4px 0 0;";
+        host.appendChild(h("div", { id: "secBar", style: "margin-top:10px;font-size:11px;color:#cbd5e1;" }, [
+            h("div", { text: "👤 " + cur.name + " (" + ROLE[cur.role] + ")" }),
+            h("button", { style: bs, text: "🛡️ सुरक्षा", onclick: showAdmin }),
+            h("button", { style: bs, text: "🔒 लक गर्ने", onclick: function () { lockApp("logout"); } })
+        ]));
+    }
+
+    /* ---------- सुरक्षा / प्रयोगकर्ता व्यवस्थापन प्यानल ---------- */
+    function showAdmin() {
+        if (!cur) return;
+        var old = document.getElementById("secAdmin"); if (old) old.remove();
+        var wrap = h("div", { id: "secAdmin", style: "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:4000;overflow-y:auto;padding:20px;" });
+        var box = h("div", { style: "background:#fff;border-radius:8px;max-width:760px;margin:0 auto;padding:22px;" });
+        function note(t, bad) { var m = document.getElementById("secAm"); if (m) { m.style.color = bad ? "#b91c1c" : "#166534"; m.textContent = t; } }
+        box.appendChild(h("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" }, [
+            h("h3", { style: "color:#0b2545;font-size:16px;", text: "🛡️ सुरक्षा तथा खाता व्यवस्थापन" }),
+            h("button", { style: BTN, text: "बन्द गर्ने", onclick: function () { wrap.remove(); } })
+        ]));
+        box.appendChild(h("div", { id: "secAm", style: "font-size:13px;min-height:16px;margin-bottom:10px;" }));
+
+        // मेरो खाता
+        box.appendChild(h("h4", { style: "margin:8px 0;color:#134074;", text: "मेरो खाता: पासवर्ड / PIN परिवर्तन" }));
+        field("हालको पासवर्ड", "cOld", "password").forEach(function (e) { box.appendChild(e); });
+        field("नयाँ पासवर्ड (खाली छोड्दा नबदलिने)", "cNew", "password").forEach(function (e) { box.appendChild(e); });
+        field("नयाँ PIN (६–८ अङ्क, खाली छोड्दा नबदलिने)", "cPin", "password").forEach(function (e) { box.appendChild(e); });
+        box.appendChild(h("button", { style: BTN, text: "परिवर्तन सेभ गर्ने", onclick: function () {
+            var np = val("cNew"), npin = val("cPin");
+            if (np && !strongPw(np)) return note("नयाँ पासवर्ड कम्तीमा १० अक्षर, अक्षर + अङ्क हुनुपर्छ।", 1);
+            if (npin && !validPin(npin)) return note("PIN ६–८ अङ्कको हुनुपर्छ।", 1);
+            if (!np && !npin) return note("केही परिवर्तन गरिएको छैन।", 1);
+            kdf(val("cOld"), cur.salt, cur.iter).then(function (x) {
+                if (!eq(x, cur.hash)) { failed("login:" + cur.u); return note("हालको पासवर्ड मिलेन।", 1); }
+                var jobs = [];
+                var all = users(), r = all[cur.u];
+                if (np) { r.salt = rnd(16); r.iter = ITER; jobs.push(kdf(np, r.salt, ITER).then(function (v) { r.hash = v; })); }
+                if (npin) { r.pinSalt = rnd(16); jobs.push(kdf(npin, r.pinSalt, ITER).then(function (v) { r.pinHash = v; })); }
+                return Promise.all(jobs).then(function () { all[cur.u] = r; jset(UK, all); cur = r; audit("change-credentials", cur.u); note("सुरक्षित गरियो।"); });
+            });
+        } }));
+
+        if (cur.role === "admin") {
+            box.appendChild(h("hr", { style: "margin:18px 0;" }));
+            box.appendChild(h("h4", { style: "margin:8px 0;color:#134074;", text: "प्रयोगकर्ता थप्ने (यो उपकरणमा)" }));
+            field("प्रयोगकर्ता नाम", "nU").forEach(function (e) { box.appendChild(e); });
+            field("नाम / पद", "nN").forEach(function (e) { box.appendChild(e); });
+            box.appendChild(h("label", { style: LBL, text: "भूमिका" }));
+            var sel = h("select", { id: "nR", style: INP }, [
+                h("option", { value: "clerk", text: ROLE.clerk + " (हेर्ने/थप्ने/जवाफ; सही र मेटाउन नपाउने)" }),
+                h("option", { value: "officer", text: ROLE.officer + " (सही गर्न पाउने)" }),
+                h("option", { value: "admin", text: ROLE.admin + " (सबै अधिकार)" })
+            ]);
+            box.appendChild(sel);
+            field("पासवर्ड (कम्तीमा १० अक्षर, अक्षर + अङ्क)", "nP", "password").forEach(function (e) { box.appendChild(e); });
+            field("PIN (६–८ अङ्क)", "nPin", "password").forEach(function (e) { box.appendChild(e); });
+            box.appendChild(h("button", { style: BTN, text: "प्रयोगकर्ता थप्ने / पुनः सेट गर्ने", onclick: function () {
+                var u = val("nU").trim().toLowerCase(), n = val("nN").trim(), r = val("nR"), p = val("nP"), pin = val("nPin");
+                if (!/^[a-z0-9._-]{3,30}$/.test(u)) return note("प्रयोगकर्ता नाम ३–३० अक्षर (a-z, 0-9, . _ -)।", 1);
+                if (!n) return note("नाम / पद लेख्नुहोस्।", 1);
+                if (!strongPw(p)) return note("पासवर्ड कम्तीमा १० अक्षर, अक्षर + अङ्क हुनुपर्छ।", 1);
+                if (!validPin(pin)) return note("PIN ६–८ अङ्कको हुनुपर्छ।", 1);
+                mkUser(u, n.slice(0, 80), r, p, pin).then(function (rec) {
+                    var all = users(); all[u] = rec; jset(UK, all); audit("user-set", u + " / " + r); showAdmin();
+                });
+            } }));
+
+            box.appendChild(h("h4", { style: "margin:16px 0 8px;color:#134074;", text: "प्रयोगकर्ताहरू" }));
+            var all = users();
+            Object.keys(all).forEach(function (k) {
+                var row = h("div", { style: "display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #e2e8f0;font-size:13px;" }, [
+                    h("span", { text: k + " — " + all[k].name + " (" + ROLE[all[k].role] + ")" })
+                ]);
+                if (k !== cur.u) row.appendChild(h("button", { style: "background:#fee2e2;color:#b91c1c;border:none;border-radius:4px;padding:5px 10px;cursor:pointer;", text: "हटाउने", onclick: function () {
+                    if (!confirm(k + " को खाता हटाउने?")) return;
+                    var a2 = users(); delete a2[k]; jset(UK, a2); audit("user-delete", k); showAdmin();
+                } }));
+                box.appendChild(row);
+            });
+
+            box.appendChild(h("h4", { style: "margin:16px 0 8px;color:#134074;", text: "गतिविधि लग (पछिल्ला १००)" }));
+            box.appendChild(h("button", { style: BTN + "margin-right:8px;", text: "लगको अखण्डता जाँच्ने", onclick: function () {
+                verifyLog().then(function (b) { note(b < 0 ? "✔️ लग अक्षुण्ण छ।" : "⚠️ लगमा छेडछाड भएको संकेत (प्रविष्टि #" + (b + 1) + ")।", b >= 0); });
+            } }));
+            box.appendChild(h("button", { style: BTN, text: "लग डाउनलोड (JSON)", onclick: function () {
+                var bl = new Blob([JSON.stringify(jget(AUK, []), null, 1)], { type: "application/json" });
+                var a = h("a", { href: URL.createObjectURL(bl), download: "audit-log.json" }); document.body.appendChild(a); a.click(); a.remove();
+            } }));
+            var tb = h("table", { style: "width:100%;font-size:12px;margin-top:10px;border-collapse:collapse;" });
+            jget(AUK, []).slice(-100).reverse().forEach(function (e) {
+                tb.appendChild(h("tr", {}, [e.t ? new Date(e.t).toLocaleString() : "", e.u, e.a, e.d].map(function (x) { return h("td", { style: "padding:4px;border-bottom:1px solid #e2e8f0;", text: String(x) }); })));
+            });
+            var sc = h("div", { style: "max-height:260px;overflow:auto;" }); sc.appendChild(tb); box.appendChild(sc);
+        }
+        wrap.appendChild(box); document.body.appendChild(wrap);
+    }
+
+    /* ---------- HTML सफाइ (XSS रोकथाम) ---------- */
+    var OK_TAGS = /^(B|I|U|S|STRIKE|STRONG|EM|BR|P|DIV|SPAN|FONT|UL|OL|LI|TABLE|THEAD|TBODY|TR|TH|TD|H1|H2|H3|H4|H5|H6|SUB|SUP|HR|BLOCKQUOTE)$/;
+    var DROP_TAGS = /^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|SVG|MATH|LINK|META|FORM|INPUT|BUTTON|TEXTAREA|SELECT|IMG|VIDEO|AUDIO|BASE|NOSCRIPT|TEMPLATE|FRAME|FRAMESET|APPLET)$/;
+    var OK_ATTR = /^(style|color|size|face|colspan|rowspan|align)$/;
+    var OK_CSS = /^(color|background-color|font-size|font-weight|font-style|font-family|text-align|text-decoration|border|border-collapse|border-color|border-style|border-width|padding|margin|width|line-height|vertical-align)$/;
+    function cleanStyle(s) {
+        return String(s).split(";").map(function (d) {
+            var i = d.indexOf(":"); if (i < 0) return "";
+            var p = d.slice(0, i).trim().toLowerCase(), v = d.slice(i + 1).trim();
+            if (!OK_CSS.test(p) || v.length > 100 || /url\s*\(|expression|javascript|@import|behavior|[<>\\]/i.test(v)) return "";
+            return p + ":" + v;
+        }).filter(Boolean).join(";");
+    }
+    function walk(node) {
+        Array.prototype.slice.call(node.childNodes).forEach(function (c) {
+            if (c.nodeType === 3) return;
+            if (c.nodeType !== 1) { node.removeChild(c); return; }
+            var t = c.tagName.toUpperCase();
+            if (DROP_TAGS.test(t)) { node.removeChild(c); return; }
+            if (!OK_TAGS.test(t)) { walk(c); while (c.firstChild) node.insertBefore(c.firstChild, c); node.removeChild(c); return; }
+            Array.prototype.slice.call(c.attributes).forEach(function (a) {
+                var n = a.name.toLowerCase();
+                if (!OK_ATTR.test(n)) { c.removeAttribute(a.name); return; }
+                if (n === "style") { var s = cleanStyle(a.value); if (s) c.setAttribute("style", s); else c.removeAttribute("style"); }
+                else if (/javascript|data:|<|>/i.test(a.value)) c.removeAttribute(a.name);
+            });
+            walk(c);
+        });
+    }
+    window.secClean = function (html) {
+        var d = new DOMParser().parseFromString("<body>" + String(html == null ? "" : html) + "</body>", "text/html");
+        walk(d.body); return d.body.innerHTML;
+    };
+    window.secImg = function (u) { u = String(u || ""); return /^data:image\/(png|jpe?g|webp|gif|svg\+xml)[;,]/i.test(u) ? u : ""; };
+    window.secSafeUrl = function (u) {
+        try { var x = new URL(String(u)); return x.protocol === "https:" && /(^|\.)(drive\.google\.com|docs\.google\.com|googleusercontent\.com)$/.test(x.hostname); } catch (e) { return false; }
+    };
+    window.secImgOk = function (f) {
+        if (!/^image\/(png|jpeg|webp)$/.test(f.type) || f.size > 3 * 1024 * 1024) {
+            alert("सहीको फोटो PNG, JPG वा WEBP (३ MB भित्र) मात्र हुनुपर्छ।");
+            var i = document.getElementById("sigImageUpload"); if (i) i.value = ""; return false;
+        }
+        return true;
+    };
+    var pad = document.getElementById("padReplyText");
+    if (pad) {
+        pad.addEventListener("paste", function (e) {
+            e.preventDefault();
+            var cd = e.clipboardData || window.clipboardData, html = cd.getData("text/html"), txt = cd.getData("text/plain");
+            document.execCommand("insertHTML", false, html ? window.secClean(html) : esc(txt).replace(/\r?\n/g, "<br>"));
+        });
+        pad.addEventListener("drop", function (e) { e.preventDefault(); });
+    }
+    // इनपुटको लम्बाइ सीमा
+    [["regDispatchNo", 60], ["regDispatchDate", 30], ["senderOffice", 200], ["senderDispatchNo", 100], ["letterSubject", 500], ["signerNameInput", 120]].forEach(function (p) {
+        var e = document.getElementById(p[0]); if (e) e.maxLength = p[1];
+    });
+
+    /* ---------- फाइल जाँच (वास्तविक प्रकार) ---------- */
+    function sniff(buf) {
+        var a = new Uint8Array(buf), s = function (i, n) { return String.fromCharCode.apply(null, Array.prototype.slice.call(a, i, i + n)); };
+        if (s(0, 4) === "%PDF") return "application/pdf";
+        if (a[0] === 0xFF && a[1] === 0xD8 && a[2] === 0xFF) return "image/jpeg";
+        if (a[0] === 0x89 && s(1, 3) === "PNG") return "image/png";
+        if (s(0, 4) === "GIF8") return "image/gif";
+        if (s(0, 4) === "RIFF" && s(8, 4) === "WEBP") return "image/webp";
+        return "";
+    }
+
+    /* ---------- पहुँच नियन्त्रण र लग: अवस्थित फङ्सनमा तह थप्ने ---------- */
+    function can(kind) {
+        if (!cur) return false;
+        if (kind === "admin") return cur.role === "admin";
+        if (kind === "sign") return cur.role === "admin" || cur.role === "officer";
+        return true;
+    }
+    var oUp = window.uploadFileToGoogleDrive;
+    window.uploadFileToGoogleDrive = function (file, statusEl, cb) {
+        if (!file) return oUp.apply(this, arguments);
+        if (!cur) { cb(null, null, null); return; }
+        var ext = (file.name.split(".").pop() || "").toLowerCase();
+        file.slice(0, 16).arrayBuffer().then(function (buf) {
+            var mime = sniff(buf);
+            if (!mime || !/^(pdf|jpe?g|png|gif|webp)$/.test(ext) || file.size > 20 * 1024 * 1024) {
+                alert("केवल वास्तविक PDF, JPG, PNG, WEBP वा GIF फाइल (२० MB भित्र) मात्र अपलोड गर्न मिल्छ।");
+                cb(null, null, null); return;
+            }
+            var safe = file.name.replace(/[^\w.\-\u0900-\u097F ]+/g, "_").slice(0, 100) || "document";
+            audit("upload", safe);
+            oUp.call(null, new File([file], safe, { type: mime }), statusEl, cb);
+        }).catch(function () { cb(null, null, null); });
+    };
+
+    var oSign = window.confirmSign;
+    window.confirmSign = function () {
+        if (!can("sign")) { alert("तपाईंलाई डिजिटल सही गर्ने अनुमति छैन।"); return; }
+        var id = val("activeSigningRowId"), pin = val("pinInput"), key = "pin:" + cur.u;
+        var left = lockLeft(key);
+        if (left) { alert("धेरै गलत PIN। " + mins(left) + " पछि फेरि प्रयास गर्नुहोस्।"); return; }
+        if (!pin) { alert("कृपया सही पिन हाल्नुहोस्!"); return; }
+        kdf(pin, cur.pinSalt, cur.iter).then(function (x) {
+            if (!eq(x, cur.pinHash)) { failed(key); audit("sign-pin-fail", id); alert("पिन मिलेन!"); document.getElementById("pinInput").value = ""; return; }
+            clearFail(key);
+            document.getElementById("signerNameInput").value = cur.name;   // सहीको नाम खाताबाट निर्धारित
+            oSign.apply(window, []);
+            var item = lettersData.find(function (d) { return d.id === id; });
+            if (item && item.signature) { item.signedBy = cur.u; item.signedAt = Date.now(); saveToLocalStorage(); }
+            audit("sign", id);
+        });
+    };
+    var oDel = window.deleteLetter;
+    window.deleteLetter = function (id) {
+        if (!can("admin")) { alert("पत्र मेटाउने अधिकार प्रशासकलाई मात्र छ।"); return; }
+        var n = lettersData.length; oDel.apply(this, arguments);
+        if (lettersData.length < n) audit("delete", id);
+    };
+    var oDone = window.markCompleted;
+    window.markCompleted = function (id) { if (!cur) return; oDone.apply(this, arguments); audit("complete", id); };
+    var oNew = window.finalizeNewItem;
+    window.finalizeNewItem = function () { if (!cur) return; oNew.apply(this, arguments); audit("add", arguments[2] + " | " + arguments[6]); };
+    var oPad = window.saveLetterPad;
+    window.saveLetterPad = function () {
+        var item = lettersData.find(function (d) { return d.id === currentLetterUniqueId; });
+        if (item && item.signature && !can("admin")) { alert("सही भइसकेको पत्र परिवर्तन गर्न सकिँदैन। प्रशासकसँग सम्पर्क गर्नुहोस्।"); return; }
+        oPad.apply(this, arguments); audit("reply-save", currentLetterUniqueId);
+    };
+    var oPdf = window.openPDF;
+    window.openPDF = function (n, id) { audit("view-file", id); return oPdf.apply(this, arguments); };
+
+    showAuth();
+})();
+</script>
+
 </body>
 </html>
