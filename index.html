@@ -1896,7 +1896,7 @@
     var INP = "width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:4px;margin-bottom:12px;font-size:14px;";
     var BTN = "background:#134074;color:#fff;border:none;border-radius:4px;padding:10px 16px;cursor:pointer;font-size:14px;";
     var LBL = "display:block;font-size:13px;color:#475569;margin-bottom:4px;font-weight:600;";
-    var ROLE = { admin: "प्रशासक (गणपति)", officer: "हस्ताक्षरकर्ता अधिकृत", clerk: "सामान्य प्रयोगकर्ता" };
+    var ROLE = { admin: "प्रशासक", officer: "हस्ताक्षरकर्ता अधिकृत", clerk: "सामान्य प्रयोगकर्ता" };
     function field(label, id, type, ph) { return [h("label", { style: LBL, text: label }), h("input", { id: id, type: type || "text", placeholder: ph || "", autocomplete: "off", style: INP })]; }
     function val(id) { return document.getElementById(id).value; }
     function strongPw(p) { return typeof p === "string" && p.length >= 10 && /[A-Za-z]/.test(p) && /\d/.test(p); }
@@ -2002,7 +2002,7 @@
         });
     }
     function showSetup(o) {
-        var c = card("प्रारम्भिक सेटअप: प्रशासक खाता बनाउनुहोस्", "यो उपकरणमा पहिलो पटक खोलिएको छ। प्रशासक (गणपति) को खाता, पासवर्ड र सही गर्ने PIN बनाउनुहोस्।");
+        var c = card("प्रारम्भिक सेटअप: प्रशासक खाता बनाउनुहोस्", "यो उपकरणमा पहिलो पटक खोलिएको छ। प्रशासक को खाता, पासवर्ड र सही गर्ने PIN बनाउनुहोस्।");
         field("प्रयोगकर्ता नाम (अंग्रेजीमा)", "sU").forEach(function (e) { c.appendChild(e); });
         field("नाम / पद (सहीमा देखिने)", "sN", "text", "जस्तै: ने.पौ. रामप्रसाद शर्मा, गणपति").forEach(function (e) { c.appendChild(e); });
         field("पासवर्ड (कम्तीमा १० अक्षर, अक्षर + अङ्क)", "sP", "password").forEach(function (e) { c.appendChild(e); });
