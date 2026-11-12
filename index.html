@@ -2145,7 +2145,11 @@
         var old = document.getElementById("secAdmin"); if (old) old.remove();
         var wrap = h("div", { id: "secAdmin", style: "position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:4000;overflow-y:auto;padding:20px;" });
         var box = h("div", { style: "background:#fff;border-radius:8px;max-width:760px;margin:0 auto;padding:22px;" });
-        function note(t, bad) { var m = document.getElementById("secAm"); if (m) { m.style.color = bad ? "#b91c1c" : "#166534"; m.textContent = t; } }
+        function note(t, bad) { var m = document.getElementById("secAm"); if (m) { m.style.color = bad ? "#b91c1c" : "#166534"; m.textContent = t; try { m.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) {} } }
+        function denyMsg(res) {
+            if (res && res.status === "denied") return "सर्भरमा तपाईंको खाताको भूमिका वा पासवर्ड फरक छ। 🔒 लक गरी फेरि लगइन गर्नुहोस्।";
+            return "सर्भरले स्वीकार गरेन: " + ((res && res.message) || (res && res.status) || "");
+        }
         box.appendChild(h("div", { style: "display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;" }, [
             h("h3", { style: "color:#0b2545;font-size:16px;", text: "🛡️ सुरक्षा तथा खाता व्यवस्थापन" }),
             h("button", { style: BTN, text: "बन्द गर्ने", onclick: function () { wrap.remove(); } })
@@ -2170,7 +2174,7 @@
                 if (npin) { r.pinSalt = rnd(16); jobs.push(kdf(npin, r.pinSalt, ITER).then(function (v) { r.pinHash = v; })); }
                 return Promise.all(jobs).then(function () {
                     return api({ action: "userSet", auth: authObj(), user: r }).then(function (res) {
-                        if (!res || res.status !== "ok") return note("सर्भरले स्वीकार गरेन: " + ((res && res.message) || (res && res.status) || ""), 1);
+                        if (!res || res.status !== "ok") return note(denyMsg(res), 1);
                         all[cur.u] = r; jset(UK, all); cur = r; audit("change-credentials", cur.u); note("सुरक्षित गरियो।");
                     });
                 }).catch(function () { note("सर्भरसँग जडान हुन सकेन; परिवर्तन भएन।", 1); });
@@ -2199,7 +2203,7 @@
                 if (!validPin(pin)) return note("PIN ६–८ अङ्कको हुनुपर्छ।", 1);
                 mkUser(u, n.slice(0, 80), r, p, pin).then(function (rec) {
                     return api({ action: "userSet", auth: authObj(), user: rec }).then(function (res) {
-                        if (!res || res.status !== "ok") return note("सर्भरले स्वीकार गरेन: " + ((res && res.message) || (res && res.status) || ""), 1);
+                        if (!res || res.status !== "ok") return note(denyMsg(res), 1);
                         if (u === cur.u) { cur = rec; var a0 = users(); a0[u] = rec; jset(UK, a0); }
                         audit("user-set", u + " / " + r); showAdmin();
                     });
@@ -2211,7 +2215,7 @@
             box.appendChild(ul);
             api({ action: "userList", auth: authObj() }).then(function (res) {
                 ul.textContent = ""; ul.style.color = "";
-                if (!res || res.status !== "ok") { ul.style.color = "#b91c1c"; ul.textContent = "सूची तान्न सकिएन।"; return; }
+                if (!res || res.status !== "ok") { ul.style.color = "#b91c1c"; ul.textContent = (res && res.status === "denied") ? "सर्भरमा तपाईंको खाता प्रशासक होइन वा पासवर्ड फरक छ। 🔒 लक गरी फेरि लगइन गर्नुहोस्।" : "सूची तान्न सकिएन।"; return; }
                 res.users.forEach(function (x) {
                     var k = x.u;
                     if (typeof lf !== "undefined" && lf) lf.appendChild(h("option", { value: k, text: k + " — " + x.name }));
@@ -2246,7 +2250,7 @@
             function loadLog() {
                 tb.textContent = "";
                 api({ action: "userAuditList", auth: authObj(), u: lf.value }).then(function (res) {
-                    if (!res || res.status !== "ok") { note("लग तान्न सकिएन।", 1); return; }
+                    if (!res || res.status !== "ok") { note((res && res.status === "denied") ? denyMsg(res) : "लग तान्न सकिएन।", 1); return; }
                     rowsNow = res.rows;
                     tb.appendChild(h("tr", {}, ["समय", "प्रयोगकर्ता", "कार्य", "विवरण"].map(function (x) { return h("th", { style: "padding:4px;border-bottom:2px solid #cbd5e1;text-align:left;", text: x }); })));
                     res.rows.forEach(function (e) {
