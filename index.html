@@ -1903,6 +1903,15 @@
     function validPin(p) { return /^\d{6,8}$/.test(p); }
     function mins(s) { return Math.ceil(s / 60) + " मिनेट"; }
 
+    /* ---------- केन्द्रीय खाता सर्भर (Google Apps Script) सँग सञ्चार ---------- */
+    function api(body) {
+        var c = new AbortController(), t = setTimeout(function () { c.abort(); }, 30000);
+        return fetch(SHEET_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body), signal: c.signal })
+            .then(function (r) { clearTimeout(t); return r.json(); })
+            .catch(function (e) { clearTimeout(t); throw e; });
+    }
+    function authObj() { return { u: cur.u, h: cur.hash }; }
+
     /* ---------- गलत प्रयास सीमा (lockout) ---------- */
     function lockLeft(key) { var r = jget(LKK, {})[key]; return (r && r.until > Date.now()) ? Math.ceil((r.until - Date.now()) / 1000) : 0; }
     function failed(key) {
@@ -1912,10 +1921,49 @@
     }
     function clearFail(key) { var m = jget(LKK, {}); delete m[key]; jset(LKK, m); }
 
+    /* ---------- केन्द्रीय गतिविधि लग (प्रशासकले सबैको काम हेर्न) ---------- */
+    var PK = "apf_sec_pend", ft = null, flushing = false;
+    var ACT = { "login": "लगइन", "logout": "लगआउट", "auto-lock": "स्वतः लक (निष्क्रिय)", "upload": "फाइल अपलोड", "sign": "डिजिटल सही", "sign-pin-fail": "गलत PIN", "delete": "पत्र मेटाइयो", "complete": "सम्पन्न गरियो", "add": "नयाँ दर्ता/चलानी", "reply-save": "जवाफ सेभ", "view-file": "फाइल हेरियो", "user-set": "खाता थपियो/परिवर्तन", "user-delete": "खाता हटाइयो", "change-credentials": "पासवर्ड/PIN परिवर्तन", "setup-admin": "प्रशासक सेटअप", "login-fail": "लगइन असफल", "login-locked": "लगइन रोकियो" };
+    function queueAudit(u, a, d) {
+        if (u === "-" || a === "login-fail") return;
+        var q = jget(PK, []);
+        q.push({ k: Date.now() + "-" + Math.random(), u: u, t: Date.now(), a: String(a).slice(0, 40), d: String(d || "").slice(0, 300) });
+        if (q.length > 300) q = q.slice(-300);
+        jset(PK, q);
+        clearTimeout(ft); ft = setTimeout(flushAudit, (a === "logout" || a === "auto-lock") ? 100 : 2500);
+    }
+    function flushAudit() {
+        if (flushing) { clearTimeout(ft); ft = setTimeout(flushAudit, 3000); return; }
+        var q = jget(PK, []); if (!q.length) return;
+        var us = users(), by = {};
+        q.forEach(function (e) { (by[e.u] = by[e.u] || []).push(e); });
+        var names = Object.keys(by).filter(function (u) { return us[u]; });
+        if (!names.length) return;
+        flushing = true;
+        var i = 0, anyOk = false;
+        (function next() {
+            if (i >= names.length) {
+                flushing = false;
+                if (anyOk && jget(PK, []).length) { clearTimeout(ft); ft = setTimeout(flushAudit, 1000); }
+                return;
+            }
+            var u = names[i++], evs = by[u].slice(0, 100);
+            api({ action: "userAudit", auth: { u: u, h: us[u].hash }, events: evs }).then(function (r) {
+                if (r && (r.status === "ok" || r.status === "denied")) {
+                    var gone = {}; evs.forEach(function (e) { gone[e.k] = 1; });
+                    jset(PK, jget(PK, []).filter(function (e) { return !gone[e.k]; }));
+                    if (r.status === "ok") anyOk = true;
+                }
+                next();
+            }).catch(function () { next(); });
+        })();
+    }
+
     /* ---------- Audit log (hash-chain) ---------- */
     var aq = Promise.resolve();
     function audit(a, d) {
         var u = cur ? cur.u : "-";
+        queueAudit(u, a, d);
         aq = aq.then(function () {
             var log = jget(AUK, []), p = log.length ? log[log.length - 1].h : "0";
             var e = { t: Date.now(), u: u, a: a, d: String(d || "").slice(0, 200), p: p };
@@ -1968,7 +2016,18 @@
             c0.appendChild(h("p", { style: "font-size:13px;color:#b91c1c;", text: "तपाईंको ब्राउजरमा सुरक्षित क्रिप्टो सुविधा उपलब्ध छैन। कृपया https:// ठेगानाबाट खोल्नुहोस्।" }));
             o.appendChild(c0); return;
         }
-        if (Object.keys(users()).length === 0) return showSetup(o);
+        var c0 = card("डिजिटल पत्राचार तथा हस्ताक्षर प्रणाली", "खाता जाँच हुँदैछ…");
+        o.appendChild(c0);
+        api({ action: "userCount" }).then(function (r) {
+            if (r && r.status === "ok" && r.n === 0 && Object.keys(users()).length === 0) showSetup(o); else showLogin(o);
+        }).catch(function () {
+            if (Object.keys(users()).length) { showLogin(o); return; }   // अफलाइन: यो उपकरणमा पहिले लगइन गरेको खाता चल्छ
+            c0.appendChild(h("p", { style: "font-size:13px;color:#b91c1c;margin-bottom:10px;", text: "सर्भरसँग जडान हुन सकेन। इन्टरनेट जाँचेर फेरि प्रयास गर्नुहोस्।" }));
+            c0.appendChild(h("button", { style: BTN + "width:100%;", text: "फेरि प्रयास गर्ने", onclick: function () { showAuth(); } }));
+        });
+    }
+    function showLogin(o) {
+        o.textContent = "";
         var c = card("डिजिटल पत्राचार तथा हस्ताक्षर प्रणाली", "प्रवेश गर्न प्रयोगकर्ता खाता प्रमाणित गर्नुहोस्");
         field("प्रयोगकर्ता नाम", "secU").forEach(function (e) { c.appendChild(e); });
         field("पासवर्ड", "secP", "password").forEach(function (e) { c.appendChild(e); });
@@ -1980,29 +2039,51 @@
         setTimeout(function () { var x = document.getElementById("secU"); if (x) x.focus(); }, 50);
     }
     var DUMMY = rnd(16);
+    function enter(rec, un, key) {
+        clearFail(key); cur = rec; window.SEC_OK = true;
+        document.body.classList.add("sec-ok");
+        var o = document.getElementById("secOverlay"); if (o) o.remove();
+        audit("login", un); injectBar(); startIdle();
+        try { renderAllTables(); updateDashboardCounts(); } catch (e) {}
+        try { if (typeof sync === "function") sync(); } catch (e) {}
+    }
+    function badLogin(un, key) {
+        failed(key); audit("login-fail", un);
+        say("प्रयोगकर्ता नाम वा पासवर्ड मिलेन।");
+        var p = document.getElementById("secP"); if (p) p.value = "";
+    }
+    // यो उपकरणमा सुरक्षित गरिएको खाताबाट प्रमाणित (अफलाइन वा सर्भरमा खाता नभएको बेला)
+    function localLogin(un, pw, key, importAfter) {
+        var rec = users()[un];
+        return kdf(pw, rec ? rec.salt : DUMMY, rec ? rec.iter : ITER).then(function (hh) {
+            if (rec && eq(hh, rec.hash)) {
+                enter(rec, un, key);
+                if (importAfter) {   // पुरानो खाताहरू एक पटक केन्द्रीय सर्भरमा सार्ने
+                    var all = users();
+                    api({ action: "userImport", users: Object.keys(all).map(function (k) { return all[k]; }) }).catch(function () {});
+                }
+            } else badLogin(un, key);
+        });
+    }
     function doLogin() {
         var un = val("secU").trim().toLowerCase(), pw = val("secP"), key = "login:" + un;
         if (!un || !pw) { say("प्रयोगकर्ता नाम र पासवर्ड भर्नुहोस्।"); return; }
         var left = lockLeft(key);
         if (left) { say("धेरै गलत प्रयास। " + mins(left) + " पछि फेरि प्रयास गर्नुहोस्।"); return; }
-        var rec = users()[un];
-        kdf(pw, rec ? rec.salt : DUMMY, rec ? rec.iter : ITER).then(function (hh) {
-            if (rec && eq(hh, rec.hash)) {
-                clearFail(key); cur = rec; window.SEC_OK = true;
-                document.body.classList.add("sec-ok");
-                var o = document.getElementById("secOverlay"); if (o) o.remove();
-                audit("login", un); injectBar(); startIdle();
-                try { renderAllTables(); updateDashboardCounts(); } catch (e) {}
-                try { if (typeof sync === "function") sync(); } catch (e) {}
-            } else {
-                failed(key); audit("login-fail", un);
-                say("प्रयोगकर्ता नाम वा पासवर्ड मिलेन।");
-                document.getElementById("secP").value = "";
-            }
-        });
+        say("जाँच हुँदैछ…");
+        api({ action: "userSalt", u: un }).then(function (s) {
+            if (!s || s.status !== "ok") throw new Error("salt");
+            return kdf(pw, s.salt, s.iter).then(function (hh) { return api({ action: "userLogin", u: un, h: hh }); });
+        }).then(function (r) {
+            if (r.status === "ok") { var all = users(); all[un] = r.user; jset(UK, all); enter(r.user, un, key); }
+            else if (r.status === "locked") say("धेरै गलत प्रयास। १० मिनेट पछि फेरि प्रयास गर्नुहोस्।");
+            else if (r.empty) return localLogin(un, pw, key, true);
+            else badLogin(un, key);
+        }, function () { return localLogin(un, pw, key, false); });
     }
     function showSetup(o) {
-        var c = card("प्रारम्भिक सेटअप: प्रशासक खाता बनाउनुहोस्", "यो उपकरणमा पहिलो पटक खोलिएको छ। प्रशासक को खाता, पासवर्ड र सही गर्ने PIN बनाउनुहोस्।");
+        o.textContent = "";
+        var c = card("प्रारम्भिक सेटअप: प्रशासक खाता बनाउनुहोस्", "यो प्रणाली पहिलो पटक खोलिएको छ। प्रशासक को खाता, पासवर्ड र सही गर्ने PIN बनाउनुहोस्।");
         field("प्रयोगकर्ता नाम (अंग्रेजीमा)", "sU").forEach(function (e) { c.appendChild(e); });
         field("नाम / पद (सहीमा देखिने)", "sN", "text", "जस्तै: ने.पौ. रामप्रसाद शर्मा, गणपति").forEach(function (e) { c.appendChild(e); });
         field("पासवर्ड (कम्तीमा १० अक्षर, अक्षर + अङ्क)", "sP", "password").forEach(function (e) { c.appendChild(e); });
@@ -2016,10 +2097,13 @@
             if (!strongPw(p)) return say("पासवर्ड कम्तीमा १० अक्षरको र अक्षर तथा अङ्क दुवै हुनुपर्छ।");
             if (p !== p2) return say("दुई पासवर्ड मिलेनन्।");
             if (!validPin(pin)) return say("PIN ६–८ अङ्कको हुनुपर्छ।");
+            say("खाता बनाइँदैछ…");
             mkUser(u, n.slice(0, 80), "admin", p, pin).then(function (rec) {
-                var all = users(); if (Object.keys(all).length) return say("खाता पहिल्यै बनिसकेको छ।");
-                all[u] = rec; jset(UK, all); cur = rec; audit("setup-admin", u); cur = null; showAuth();
-            });
+                return api({ action: "userImport", users: [rec] }).then(function (r) {
+                    if (!r || r.status !== "ok") { say("खाता पहिल्यै बनिसकेको छ।"); setTimeout(showAuth, 1500); return; }
+                    var all = users(); all[u] = rec; jset(UK, all); cur = rec; audit("setup-admin", u); cur = null; showAuth();
+                });
+            }).catch(function () { say("सर्भरसँग जडान हुन सकेन। फेरि प्रयास गर्नुहोस्।"); });
         } }));
         o.appendChild(c);
     }
@@ -2081,23 +2165,27 @@
             kdf(val("cOld"), cur.salt, cur.iter).then(function (x) {
                 if (!eq(x, cur.hash)) { failed("login:" + cur.u); return note("हालको पासवर्ड मिलेन।", 1); }
                 var jobs = [];
-                var all = users(), r = all[cur.u];
+                var all = users(), r = JSON.parse(JSON.stringify(cur));
                 if (np) { r.salt = rnd(16); r.iter = ITER; jobs.push(kdf(np, r.salt, ITER).then(function (v) { r.hash = v; })); }
                 if (npin) { r.pinSalt = rnd(16); jobs.push(kdf(npin, r.pinSalt, ITER).then(function (v) { r.pinHash = v; })); }
-                return Promise.all(jobs).then(function () { all[cur.u] = r; jset(UK, all); cur = r; audit("change-credentials", cur.u); note("सुरक्षित गरियो।"); });
+                return Promise.all(jobs).then(function () {
+                    return api({ action: "userSet", auth: authObj(), user: r }).then(function (res) {
+                        if (!res || res.status !== "ok") return note("सर्भरले स्वीकार गरेन: " + ((res && res.message) || (res && res.status) || ""), 1);
+                        all[cur.u] = r; jset(UK, all); cur = r; audit("change-credentials", cur.u); note("सुरक्षित गरियो।");
+                    });
+                }).catch(function () { note("सर्भरसँग जडान हुन सकेन; परिवर्तन भएन।", 1); });
             });
         } }));
 
         if (cur.role === "admin") {
             box.appendChild(h("hr", { style: "margin:18px 0;" }));
-            box.appendChild(h("h4", { style: "margin:8px 0;color:#134074;", text: "प्रयोगकर्ता थप्ने (यो उपकरणमा)" }));
+            box.appendChild(h("h4", { style: "margin:8px 0;color:#134074;", text: "प्रयोगकर्ता थप्ने (सबै उपकरणमा चल्ने)" }));
             field("प्रयोगकर्ता नाम", "nU").forEach(function (e) { box.appendChild(e); });
             field("नाम / पद", "nN").forEach(function (e) { box.appendChild(e); });
             box.appendChild(h("label", { style: LBL, text: "भूमिका" }));
             var sel = h("select", { id: "nR", style: INP }, [
                 h("option", { value: "clerk", text: ROLE.clerk + " (हेर्ने/थप्ने/जवाफ; सही र मेटाउन नपाउने)" }),
-                h("option", { value: "officer", text: ROLE.officer + " (सही गर्न पाउने)" }),
-                h("option", { value: "admin", text: ROLE.admin + " (सबै अधिकार)" })
+                h("option", { value: "officer", text: ROLE.officer + " (सही गर्न पाउने)" })
             ]);
             box.appendChild(sel);
             field("पासवर्ड (कम्तीमा १० अक्षर, अक्षर + अङ्क)", "nP", "password").forEach(function (e) { box.appendChild(e); });
@@ -2105,40 +2193,69 @@
             box.appendChild(h("button", { style: BTN, text: "प्रयोगकर्ता थप्ने / पुनः सेट गर्ने", onclick: function () {
                 var u = val("nU").trim().toLowerCase(), n = val("nN").trim(), r = val("nR"), p = val("nP"), pin = val("nPin");
                 if (!/^[a-z0-9._-]{3,30}$/.test(u)) return note("प्रयोगकर्ता नाम ३–३० अक्षर (a-z, 0-9, . _ -)।", 1);
+                if (u === cur.u) r = "admin";   // प्रशासकले आफ्नै खाता पुनः सेट गर्दा भूमिका प्रशासक नै रहने
                 if (!n) return note("नाम / पद लेख्नुहोस्।", 1);
                 if (!strongPw(p)) return note("पासवर्ड कम्तीमा १० अक्षर, अक्षर + अङ्क हुनुपर्छ।", 1);
                 if (!validPin(pin)) return note("PIN ६–८ अङ्कको हुनुपर्छ।", 1);
                 mkUser(u, n.slice(0, 80), r, p, pin).then(function (rec) {
-                    var all = users(); all[u] = rec; jset(UK, all); audit("user-set", u + " / " + r); showAdmin();
-                });
+                    return api({ action: "userSet", auth: authObj(), user: rec }).then(function (res) {
+                        if (!res || res.status !== "ok") return note("सर्भरले स्वीकार गरेन: " + ((res && res.message) || (res && res.status) || ""), 1);
+                        if (u === cur.u) { cur = rec; var a0 = users(); a0[u] = rec; jset(UK, a0); }
+                        audit("user-set", u + " / " + r); showAdmin();
+                    });
+                }).catch(function () { note("सर्भरसँग जडान हुन सकेन; खाता थपिएन।", 1); });
             } }));
 
             box.appendChild(h("h4", { style: "margin:16px 0 8px;color:#134074;", text: "प्रयोगकर्ताहरू" }));
-            var all = users();
-            Object.keys(all).forEach(function (k) {
-                var row = h("div", { style: "display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #e2e8f0;font-size:13px;" }, [
-                    h("span", { text: k + " — " + all[k].name + " (" + ROLE[all[k].role] + ")" })
-                ]);
-                if (k !== cur.u) row.appendChild(h("button", { style: "background:#fee2e2;color:#b91c1c;border:none;border-radius:4px;padding:5px 10px;cursor:pointer;", text: "हटाउने", onclick: function () {
-                    if (!confirm(k + " को खाता हटाउने?")) return;
-                    var a2 = users(); delete a2[k]; jset(UK, a2); audit("user-delete", k); showAdmin();
-                } }));
-                box.appendChild(row);
-            });
+            var ul = h("div", { style: "font-size:13px;color:#64748b;", text: "लोड हुँदैछ…" });
+            box.appendChild(ul);
+            api({ action: "userList", auth: authObj() }).then(function (res) {
+                ul.textContent = ""; ul.style.color = "";
+                if (!res || res.status !== "ok") { ul.style.color = "#b91c1c"; ul.textContent = "सूची तान्न सकिएन।"; return; }
+                res.users.forEach(function (x) {
+                    var k = x.u;
+                    if (typeof lf !== "undefined" && lf) lf.appendChild(h("option", { value: k, text: k + " — " + x.name }));
+                    var row = h("div", { style: "display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #e2e8f0;font-size:13px;" }, [
+                        h("span", { text: k + " — " + x.name + " (" + ROLE[x.role] + ")" })
+                    ]);
+                    if (k !== cur.u) row.appendChild(h("button", { style: "background:#fee2e2;color:#b91c1c;border:none;border-radius:4px;padding:5px 10px;cursor:pointer;", text: "हटाउने", onclick: function () {
+                        if (!confirm(k + " को खाता हटाउने?")) return;
+                        api({ action: "userDelete", auth: authObj(), u: k }).then(function (r2) {
+                            if (!r2 || r2.status !== "ok") return note("हटाउन सकिएन।", 1);
+                            audit("user-delete", k); showAdmin();
+                        }).catch(function () { note("सर्भरसँग जडान हुन सकेन।", 1); });
+                    } }));
+                    ul.appendChild(row);
+                });
+            }).catch(function () { ul.style.color = "#b91c1c"; ul.textContent = "सर्भरसँग जडान हुन सकेन।"; });
 
-            box.appendChild(h("h4", { style: "margin:16px 0 8px;color:#134074;", text: "गतिविधि लग (पछिल्ला १००)" }));
-            box.appendChild(h("button", { style: BTN + "margin-right:8px;", text: "लगको अखण्डता जाँच्ने", onclick: function () {
-                verifyLog().then(function (b) { note(b < 0 ? "✔️ लग अक्षुण्ण छ।" : "⚠️ लगमा छेडछाड भएको संकेत (प्रविष्टि #" + (b + 1) + ")।", b >= 0); });
+            box.appendChild(h("h4", { style: "margin:16px 0 8px;color:#134074;", text: "सबै प्रयोगकर्ताको गतिविधि (केन्द्रीय लग, पछिल्ला ३००)" }));
+            var lf = h("select", { id: "lgU", style: INP, onchange: function () { loadLog(); } }, [h("option", { value: "", text: "सबै प्रयोगकर्ता" })]);
+            box.appendChild(lf);
+            var rowsNow = [];
+            box.appendChild(h("button", { style: BTN + "margin-right:8px;", text: "ताजा गर्ने", onclick: function () { loadLog(); } }));
+            box.appendChild(h("button", { style: BTN + "margin-right:8px;", text: "लग डाउनलोड (JSON)", onclick: function () {
+                var bl = new Blob([JSON.stringify(rowsNow, null, 1)], { type: "application/json" });
+                var a = h("a", { href: URL.createObjectURL(bl), download: "activity-log.json" }); document.body.appendChild(a); a.click(); a.remove();
             } }));
-            box.appendChild(h("button", { style: BTN, text: "लग डाउनलोड (JSON)", onclick: function () {
-                var bl = new Blob([JSON.stringify(jget(AUK, []), null, 1)], { type: "application/json" });
-                var a = h("a", { href: URL.createObjectURL(bl), download: "audit-log.json" }); document.body.appendChild(a); a.click(); a.remove();
+            box.appendChild(h("button", { style: BTN, text: "यो उपकरणको लग जाँच्ने", onclick: function () {
+                verifyLog().then(function (b) { note(b < 0 ? "✔️ यो उपकरणको लग अक्षुण्ण छ।" : "⚠️ लगमा छेडछाड भएको संकेत (प्रविष्टि #" + (b + 1) + ")।", b >= 0); });
             } }));
             var tb = h("table", { style: "width:100%;font-size:12px;margin-top:10px;border-collapse:collapse;" });
-            jget(AUK, []).slice(-100).reverse().forEach(function (e) {
-                tb.appendChild(h("tr", {}, [e.t ? new Date(e.t).toLocaleString() : "", e.u, e.a, e.d].map(function (x) { return h("td", { style: "padding:4px;border-bottom:1px solid #e2e8f0;", text: String(x) }); })));
-            });
-            var sc = h("div", { style: "max-height:260px;overflow:auto;" }); sc.appendChild(tb); box.appendChild(sc);
+            var sc = h("div", { style: "max-height:320px;overflow:auto;" }); sc.appendChild(tb); box.appendChild(sc);
+            function loadLog() {
+                tb.textContent = "";
+                api({ action: "userAuditList", auth: authObj(), u: lf.value }).then(function (res) {
+                    if (!res || res.status !== "ok") { note("लग तान्न सकिएन।", 1); return; }
+                    rowsNow = res.rows;
+                    tb.appendChild(h("tr", {}, ["समय", "प्रयोगकर्ता", "कार्य", "विवरण"].map(function (x) { return h("th", { style: "padding:4px;border-bottom:2px solid #cbd5e1;text-align:left;", text: x }); })));
+                    res.rows.forEach(function (e) {
+                        tb.appendChild(h("tr", {}, [e.t, e.u, ACT[e.a] || e.a, e.d].map(function (x) { return h("td", { style: "padding:4px;border-bottom:1px solid #e2e8f0;", text: String(x) }); })));
+                    });
+                    if (!res.rows.length) tb.appendChild(h("tr", {}, [h("td", { style: "padding:6px;color:#64748b;", text: "कुनै गतिविधि भेटिएन।" })]));
+                }).catch(function () { note("सर्भरसँग जडान हुन सकेन।", 1); });
+            }
+            loadLog();
         }
         wrap.appendChild(box); document.body.appendChild(wrap);
     }
@@ -2213,6 +2330,13 @@
     }
 
     /* ---------- पहुँच नियन्त्रण र लग: अवस्थित फङ्सनमा तह थप्ने ---------- */
+    function lbl(id) {
+        try {
+            var it = lettersData.find(function (d) { return d.id === id; });
+            if (!it) return String(id);
+            return (it.type === "darta" ? "दर्ता" : "चलानी") + " नं. " + (it.regNo || "") + " | " + String(it.subject || "").slice(0, 80);
+        } catch (e) { return String(id); }
+    }
     function can(kind) {
         if (!cur) return false;
         if (kind === "admin") return cur.role === "admin";
@@ -2244,33 +2368,33 @@
         if (left) { alert("धेरै गलत PIN। " + mins(left) + " पछि फेरि प्रयास गर्नुहोस्।"); return; }
         if (!pin) { alert("कृपया सही पिन हाल्नुहोस्!"); return; }
         kdf(pin, cur.pinSalt, cur.iter).then(function (x) {
-            if (!eq(x, cur.pinHash)) { failed(key); audit("sign-pin-fail", id); alert("पिन मिलेन!"); document.getElementById("pinInput").value = ""; return; }
+            if (!eq(x, cur.pinHash)) { failed(key); audit("sign-pin-fail", lbl(id)); alert("पिन मिलेन!"); document.getElementById("pinInput").value = ""; return; }
             clearFail(key);
             document.getElementById("signerNameInput").value = cur.name;   // सहीको नाम खाताबाट निर्धारित
             oSign.apply(window, []);
             var item = lettersData.find(function (d) { return d.id === id; });
             if (item && item.signature) { item.signedBy = cur.u; item.signedAt = Date.now(); saveToLocalStorage(); }
-            audit("sign", id);
+            audit("sign", lbl(id));
         });
     };
     var oDel = window.deleteLetter;
     window.deleteLetter = function (id) {
         if (!can("admin")) { alert("पत्र मेटाउने अधिकार प्रशासकलाई मात्र छ।"); return; }
-        var n = lettersData.length; oDel.apply(this, arguments);
-        if (lettersData.length < n) audit("delete", id);
+        var n = lettersData.length, L0 = lbl(id); oDel.apply(this, arguments);
+        if (lettersData.length < n) audit("delete", L0);
     };
     var oDone = window.markCompleted;
-    window.markCompleted = function (id) { if (!cur) return; oDone.apply(this, arguments); audit("complete", id); };
+    window.markCompleted = function (id) { if (!cur) return; oDone.apply(this, arguments); audit("complete", lbl(id)); };
     var oNew = window.finalizeNewItem;
     window.finalizeNewItem = function () { if (!cur) return; oNew.apply(this, arguments); audit("add", arguments[2] + " | " + arguments[6]); };
     var oPad = window.saveLetterPad;
     window.saveLetterPad = function () {
         var item = lettersData.find(function (d) { return d.id === currentLetterUniqueId; });
         if (item && item.signature && !can("admin")) { alert("सही भइसकेको पत्र परिवर्तन गर्न सकिँदैन। प्रशासकसँग सम्पर्क गर्नुहोस्।"); return; }
-        oPad.apply(this, arguments); audit("reply-save", currentLetterUniqueId);
+        oPad.apply(this, arguments); audit("reply-save", lbl(currentLetterUniqueId));
     };
     var oPdf = window.openPDF;
-    window.openPDF = function (n, id) { audit("view-file", id); return oPdf.apply(this, arguments); };
+    window.openPDF = function (n, id) { audit("view-file", lbl(id)); return oPdf.apply(this, arguments); };
 
     showAuth();
 })();
