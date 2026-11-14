@@ -1896,7 +1896,7 @@
     var INP = "width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:4px;margin-bottom:12px;font-size:14px;";
     var BTN = "background:#134074;color:#fff;border:none;border-radius:4px;padding:10px 16px;cursor:pointer;font-size:14px;";
     var LBL = "display:block;font-size:13px;color:#475569;margin-bottom:4px;font-weight:600;";
-    var ROLE = { admin: "प्रशासक", officer: "हस्ताक्षरकर्ता अधिकृत", clerk: "सामान्य प्रयोगकर्ता" };
+    var ROLE = { admin: "सुपर एडमिन", sysadmin: "सिस्टम एडमिन", head: "शाखा प्रमुख", officer: "स्वीकृतकर्ता अधिकृत", entry: "डाटा इन्ट्री अपरेटर", clerk: "सामान्य प्रयोगकर्ता", inspector: "निरीक्षणकर्ता", viewer: "हेर्ने मात्र", self: "कर्मचारी स्वयंसेवा" };
     function field(label, id, type, ph) { return [h("label", { style: LBL, text: label }), h("input", { id: id, type: type || "text", placeholder: ph || "", autocomplete: "off", style: INP })]; }
     function val(id) { return document.getElementById(id).value; }
     function strongPw(p) { return typeof p === "string" && p.length >= 10 && /[A-Za-z]/.test(p) && /\d/.test(p); }
@@ -2181,23 +2181,34 @@
             });
         } }));
 
-        if (cur.role === "admin") {
+        if (can("users")) {
             box.appendChild(h("hr", { style: "margin:18px 0;" }));
             box.appendChild(h("h4", { style: "margin:8px 0;color:#134074;", text: "प्रयोगकर्ता थप्ने (सबै उपकरणमा चल्ने)" }));
             field("प्रयोगकर्ता नाम", "nU").forEach(function (e) { box.appendChild(e); });
             field("नाम / पद", "nN").forEach(function (e) { box.appendChild(e); });
             box.appendChild(h("label", { style: LBL, text: "भूमिका" }));
             var sel = h("select", { id: "nR", style: INP }, [
-                h("option", { value: "clerk", text: ROLE.clerk + " (हेर्ने/थप्ने/जवाफ; सही र मेटाउन नपाउने)" }),
-                h("option", { value: "officer", text: ROLE.officer + " (सही गर्न पाउने)" })
+                h("option", { value: "admin", text: ROLE.admin + " (पूर्ण नियन्त्रण)" }),
+                h("option", { value: "sysadmin", text: ROLE.sysadmin + " (प्रयोगकर्ता तथा सिस्टम व्यवस्थापन)" }),
+                h("option", { value: "head", text: ROLE.head + " (आफ्नो शाखाको पूर्ण व्यवस्थापन)" }),
+                h("option", { value: "officer", text: ROLE.officer + " (जाँच तथा स्वीकृति)" }),
+                h("option", { value: "entry", text: ROLE.entry + " (डाटा थप तथा सम्पादन)" }),
+                h("option", { value: "clerk", text: ROLE.clerk + " (सीमित प्रयोग)" }),
+                h("option", { value: "inspector", text: ROLE.inspector + " (अभिलेख तथा गतिविधि निरीक्षण)" }),
+                h("option", { value: "viewer", text: ROLE.viewer + " (View Only)" }),
+                h("option", { value: "self", text: ROLE.self + " (आफ्नो विवरण मात्र)" })
             ]);
             box.appendChild(sel);
+            sel.value = "clerk";
             field("पासवर्ड (कम्तीमा १० अक्षर, अक्षर + अङ्क)", "nP", "password").forEach(function (e) { box.appendChild(e); });
             field("PIN (६–८ अङ्क)", "nPin", "password").forEach(function (e) { box.appendChild(e); });
+            var known = {};
             box.appendChild(h("button", { style: BTN, text: "प्रयोगकर्ता थप्ने / पुनः सेट गर्ने", onclick: function () {
                 var u = val("nU").trim().toLowerCase(), n = val("nN").trim(), r = val("nR"), p = val("nP"), pin = val("nPin");
                 if (!/^[a-z0-9._-]{3,30}$/.test(u)) return note("प्रयोगकर्ता नाम ३–३० अक्षर (a-z, 0-9, . _ -)।", 1);
-                if (u === cur.u) r = "admin";   // प्रशासकले आफ्नै खाता पुनः सेट गर्दा भूमिका प्रशासक नै रहने
+                if (u === cur.u) r = cur.role;   // आफ्नै खाता पुनः सेट गर्दा भूमिका उही रहने
+                if (r === "admin" && cur.role !== "admin") return note("सुपर एडमिनको खाता सुपर एडमिनले मात्र बनाउन सक्छ।", 1);
+                if (cur.role !== "admin" && known[u] === "admin") return note("सुपर एडमिनको खाता परिवर्तन गर्न मिल्दैन।", 1);
                 if (!n) return note("नाम / पद लेख्नुहोस्।", 1);
                 if (!strongPw(p)) return note("पासवर्ड कम्तीमा १० अक्षर, अक्षर + अङ्क हुनुपर्छ।", 1);
                 if (!validPin(pin)) return note("PIN ६–८ अङ्कको हुनुपर्छ।", 1);
@@ -2217,12 +2228,12 @@
                 ul.textContent = ""; ul.style.color = "";
                 if (!res || res.status !== "ok") { ul.style.color = "#b91c1c"; ul.textContent = (res && res.status === "denied") ? "सर्भरमा तपाईंको खाता प्रशासक होइन वा पासवर्ड फरक छ। 🔒 लक गरी फेरि लगइन गर्नुहोस्।" : "सूची तान्न सकिएन।"; return; }
                 res.users.forEach(function (x) {
-                    var k = x.u;
+                    var k = x.u; known[k] = x.role;
                     if (typeof lf !== "undefined" && lf) lf.appendChild(h("option", { value: k, text: k + " — " + x.name }));
                     var row = h("div", { style: "display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #e2e8f0;font-size:13px;" }, [
                         h("span", { text: k + " — " + x.name + " (" + ROLE[x.role] + ")" })
                     ]);
-                    if (k !== cur.u) row.appendChild(h("button", { style: "background:#fee2e2;color:#b91c1c;border:none;border-radius:4px;padding:5px 10px;cursor:pointer;", text: "हटाउने", onclick: function () {
+                    if (k !== cur.u && (cur.role === "admin" || x.role !== "admin")) row.appendChild(h("button", { style: "background:#fee2e2;color:#b91c1c;border:none;border-radius:4px;padding:5px 10px;cursor:pointer;", text: "हटाउने", onclick: function () {
                         if (!confirm(k + " को खाता हटाउने?")) return;
                         api({ action: "userDelete", auth: authObj(), u: k }).then(function (r2) {
                             if (!r2 || r2.status !== "ok") return note("हटाउन सकिएन।", 1);
@@ -2233,6 +2244,8 @@
                 });
             }).catch(function () { ul.style.color = "#b91c1c"; ul.textContent = "सर्भरसँग जडान हुन सकेन।"; });
 
+        }
+        if (can("users") || cur.role === "inspector") {
             box.appendChild(h("h4", { style: "margin:16px 0 8px;color:#134074;", text: "सबै प्रयोगकर्ताको गतिविधि (केन्द्रीय लग, पछिल्ला ३००)" }));
             var lf = h("select", { id: "lgU", style: INP, onchange: function () { loadLog(); } }, [h("option", { value: "", text: "सबै प्रयोगकर्ता" })]);
             box.appendChild(lf);
@@ -2344,13 +2357,17 @@
     function can(kind) {
         if (!cur) return false;
         if (kind === "admin") return cur.role === "admin";
-        if (kind === "sign") return cur.role === "admin" || cur.role === "officer";
+        if (kind === "sign") return cur.role === "admin" || cur.role === "officer" || cur.role === "head";
+        if (kind === "users") return cur.role === "admin" || cur.role === "sysadmin";
+        if (kind === "delete") return cur.role === "admin" || cur.role === "head";
+        if (kind === "write") return ["sysadmin", "inspector", "viewer", "self"].indexOf(cur.role) < 0;
         return true;
     }
     var oUp = window.uploadFileToGoogleDrive;
     window.uploadFileToGoogleDrive = function (file, statusEl, cb) {
         if (!file) return oUp.apply(this, arguments);
         if (!cur) { cb(null, null, null); return; }
+        if (!can("write")) { alert("तपाईंको भूमिकामा फाइल अपलोड गर्न मिल्दैन।"); cb(null, null, null); return; }
         var ext = (file.name.split(".").pop() || "").toLowerCase();
         file.slice(0, 16).arrayBuffer().then(function (buf) {
             var mime = sniff(buf);
@@ -2383,16 +2400,17 @@
     };
     var oDel = window.deleteLetter;
     window.deleteLetter = function (id) {
-        if (!can("admin")) { alert("पत्र मेटाउने अधिकार प्रशासकलाई मात्र छ।"); return; }
+        if (!can("delete")) { alert("पत्र मेटाउने अधिकार सुपर एडमिन वा शाखा प्रमुखलाई मात्र छ।"); return; }
         var n = lettersData.length, L0 = lbl(id); oDel.apply(this, arguments);
         if (lettersData.length < n) audit("delete", L0);
     };
     var oDone = window.markCompleted;
-    window.markCompleted = function (id) { if (!cur) return; oDone.apply(this, arguments); audit("complete", lbl(id)); };
+    window.markCompleted = function (id) { if (!cur) return; if (!can("write")) { alert("तपाईंको भूमिकामा परिवर्तन गर्न मिल्दैन।"); return; } oDone.apply(this, arguments); audit("complete", lbl(id)); };
     var oNew = window.finalizeNewItem;
-    window.finalizeNewItem = function () { if (!cur) return; oNew.apply(this, arguments); audit("add", arguments[2] + " | " + arguments[6]); };
+    window.finalizeNewItem = function () { if (!cur) return; if (!can("write")) { alert("तपाईंको भूमिकामा नयाँ पत्र थप्न मिल्दैन।"); return; } oNew.apply(this, arguments); audit("add", arguments[2] + " | " + arguments[6]); };
     var oPad = window.saveLetterPad;
     window.saveLetterPad = function () {
+        if (!can("write")) { alert("तपाईंको भूमिकामा जवाफ/परिवर्तन सुरक्षित गर्न मिल्दैन।"); return; }
         var item = lettersData.find(function (d) { return d.id === currentLetterUniqueId; });
         if (item && item.signature && !can("admin")) { alert("सही भइसकेको पत्र परिवर्तन गर्न सकिँदैन। प्रशासकसँग सम्पर्क गर्नुहोस्।"); return; }
         oPad.apply(this, arguments); audit("reply-save", lbl(currentLetterUniqueId));
